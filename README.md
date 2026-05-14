@@ -2,6 +2,9 @@
 
 **Real-Time AI-Powered CatchMind with Diffusion**
 
+22101169 류진혁 (JinHyeokRyu)<br>
+22102472 조강현 (LewisCho7)
+
 ## 1. Project Introduction
 
 기존의 캐치마인드(CatchMind) 게임에 Computer Vision과 Generative AI를 결합한 실시간 인터랙티브 드로잉 게임!!
