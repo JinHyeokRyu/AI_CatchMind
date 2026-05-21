@@ -6,3 +6,8 @@ __pycache__/
 
 # VS Code 설정 폴더가 있다면 이것도 차단하는 게 좋습니다
 .vscode/
+
+# dataset 관련 차단
+AnitaDataset/
+*.zip
+*.png

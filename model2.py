@@ -1,0 +1,101 @@
+import torch
+import numpy as np
+import cv2
+from PIL import Image
+# LCM 스케줄러 로드
+from diffusers import StableDiffusionControlNetImg2ImgPipeline, ControlNetModel, LCMScheduler
+
+# -----------------------------
+# 1. 모델 및 파이프라인 로드 (VRAM 최적화 버전)
+# -----------------------------
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+# 가벼운 ControlNet Scribble 로드
+controlnet = ControlNetModel.from_pretrained(
+    "lllyasviel/control_v11p_sd15_scribble",
+    torch_dtype=torch.float16
+)
+
+# SD 1.5 기본 파이프라인 로드
+pipe = StableDiffusionControlNetImg2ImgPipeline.from_pretrained(
+    "runwayml/stable-diffusion-v1-5",
+    controlnet=controlnet,
+    torch_dtype=torch.float16
+)
+
+# [핵심] 고속 생성을 위한 LCM LoRA 다운로드 및 병합
+# pipe.load_lora_weights("latent-consistency/lcm-lora-sdv1-5")
+pipe.load_lora_weights("handdraw.safetensors")
+pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
+
+# [핵심] RTX 3050(VRAM 4GB)을 위한 메모리 최적화 기법들
+pipe.enable_xformers_memory_efficient_attention()
+pipe.enable_attention_slicing()  # 메모리 부하를 줄이기 위해 어텐션을 쪼개서 계산
+# 만약 여전히 OOM(메모리 부족)이 난다면 아래 줄의 주석을 해제하세요.
+# pipe.enable_sequential_cpu_offload() 
+
+pipe.safety_checker = None
+pipe.requires_safety_checker = False
+pipe.to(device)
+
+# -----------------------------
+# 2. RTX 3050용 전처리 (경량화 및 흑백 반전)
+# -----------------------------
+def preprocess(image):
+    # 3050 Laptop을 위해 해상도를 320x320으로 타협 (연산량 급감)
+    target_size = (320, 320)
+    image = cv2.resize(image, target_size)
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    # 그림판의 흰색 배경(255)에 검은 선(0)을 감지하기 위한 그레이스케일
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    # 200보다 밝은 부분(배경)은 검게, 어두운 부분(사용자 선)은 하얗게 이진화 반전
+    _, alpha = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
+    
+    # RTX 3050에서 320 해상도일 때 선이 너무 얇으면 인식을 못 하므로 약간 두껍게 만듭니다.
+    kernel = np.ones((3,3), np.uint8)
+    edges = cv2.dilate(alpha, kernel, iterations=1)
+    
+    # ControlNet Scribble 표준 입력 형태인 (검은 배경 + 흰색 선) 완성
+    edges_rgb = cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
+
+    return image_rgb, edges_rgb
+
+# -----------------------------
+# 3. 이미지 생성 함수 (LCM 4 Step 고속 생성)
+# -----------------------------
+def generate(image_path):
+    image = cv2.imread(image_path)
+    if image is None:
+        print("이미지 파일을 찾을 수 없습니다.")
+        return
+
+    overlay, edges = preprocess(image)
+
+    overlay_pil = Image.fromarray(overlay)
+    edges_pil = Image.fromarray(edges)
+
+    # 단순 명료한 프롬프트 (RTX 3050 환경에서는 프롬프트가 너무 길면 무거워집니다)
+    prompt = "masterpiece, best quality, cute webtoon style, vibrant flat colors, clean lineart, pop art, sharp focus, 2d anime, simple white background"
+    negative_prompt = "cluttered background, text, logo, worst quality, low quality, realistic, photorealistic, 3d, render, sketch, deformed body, blurry"
+
+    # 추론 수행
+    result = pipe(
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        image=overlay_pil,       # 채색 가이드용 원본 스케치
+        control_image=edges_pil, # 형태 고정용 흑백 반전 엣지
+        guidance_scale=1.5,      # LCM LoRA 사용 시 1.0 ~ 2.0 사이가 최적입니다.
+        num_inference_steps=4,   # [핵심] 단 4번만 연산하여 RTX 3050에서도 속도 확보
+        strength=0.7             # 0.7~0.8 정도로 설정해야 스케치 형태를 유지하면서 AI가 이쁘게 채색합니다.
+    ).images[0]
+
+    return result
+
+if __name__ == "__main__":
+    # 테스트 실행
+    result = generate('AnitaDataset/dogmatism/sketch/188_a/0082.png')
+    if result:
+        result.save("result.png")
+        print("성공적으로 이미지가 생성되었습니다!")
