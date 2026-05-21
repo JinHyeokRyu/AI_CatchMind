@@ -5,6 +5,8 @@ import base64
 from io import BytesIO
 from PIL import Image
 
+from model2 import init_model, model
+
 app = FastAPI()
 
 class ConnectionManager:
@@ -22,8 +24,12 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+print('모델을 불러오는 중...')
+pipe = init_model()
+
+
 # AI 모델이 요구하는 가상의 입력 해상도 설정 
-AI_INPUT_SIZE = 256
+AI_INPUT_SIZE = 512
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -45,14 +51,25 @@ async def websocket_endpoint(websocket: WebSocket):
                 # 1. PIL 라이브러리로 원본 이미지(512x512) 로드
                 pil_image = Image.open(BytesIO(img_bytes))
                 
-                # 2. [핵심] AI 모델에 들어갈 크기(예: 64x64)로 리사이즈!
+                # 2. [핵심] AI 모델에 들어갈 크기로 리사이즈!
                 # (추후 이 변환된 'resized_image'를 팀원의 AI 모델 입력값으로 넣게 됩니다)
                 resized_image = pil_image.resize((AI_INPUT_SIZE, AI_INPUT_SIZE))
                 print(f"📐 이미지 리사이즈 완료: {pil_image.size} -> {resized_image.size}")
                 
+
+                # 단순 명료한 프롬프트 (RTX 3050 환경에서는 프롬프트가 너무 길면 무거워집니다)
+                # prompt = "vegetable, realistic, best quality, cute webtoon style, vibrant flat colors, clean lineart, sharp focus, simple white background"
+                # negative_prompt = "cluttered background, text, logo, worst quality, low quality, photorealistic, 3d, render, sketch, deformed body, blurry"
+
+                prompt = "vegetable, realistic"
+                negative_prompt = "low quality"
+
+                result = model(pipe, resized_image, AI_INPUT_SIZE, prompt, negative_prompt)
+
+
                 # 3. 클라이언트에게 돌려주기 위해 다시 Base64 문자열로 패키징
                 buffered = BytesIO()
-                resized_image.save(buffered, format="PNG")
+                result.save(buffered, format="PNG")
                 response_b64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
                 
                 # 4. 클라이언트로 전송 (Echo)
