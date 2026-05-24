@@ -5,7 +5,10 @@ import base64
 from io import BytesIO
 from PIL import Image
 
-from model2 import init_model, model
+from models.stable_diffusion import init_pipe, StableDiffusion
+
+# 실행 명령어
+# uvicorn server:app --reload
 
 app = FastAPI()
 
@@ -24,17 +27,34 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-print('모델을 불러오는 중...')
-pipe = init_model()
 
+# 모델이 요구하는 입력 해상도 설정 
+INPUT_SIZE = 512
 
-# AI 모델이 요구하는 가상의 입력 해상도 설정 
-AI_INPUT_SIZE = 512
+print('Stable Diffusion 모델을 불러오는 중...')
+pipe = init_pipe()
+
+# 더미 입력으로 첫 inference 미리 수행
+dummy = Image.new("RGB",(INPUT_SIZE, INPUT_SIZE),(255,255,255))
+
+_ = pipe(
+    prompt="",
+    negative_prompt="",
+    image=dummy,       
+    control_image=dummy, 
+    guidance_scale=1.5,  
+    num_inference_steps=4, 
+    strength=0.8 
+)
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
+        # classification 결과값 초기화
+        classification_result = None
+        temp_result = None
+
         while True:
             # 클라이언트로부터 텍스트 데이터(JSON)를 받습니다.
             data = await websocket.receive_text()
@@ -53,7 +73,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 
                 # 2. [핵심] AI 모델에 들어갈 크기로 리사이즈!
                 # (추후 이 변환된 'resized_image'를 팀원의 AI 모델 입력값으로 넣게 됩니다)
-                resized_image = pil_image.resize((AI_INPUT_SIZE, AI_INPUT_SIZE))
+                resized_image = pil_image.resize((INPUT_SIZE, INPUT_SIZE))
                 print(f"📐 이미지 리사이즈 완료: {pil_image.size} -> {resized_image.size}")
                 
 
@@ -61,10 +81,26 @@ async def websocket_endpoint(websocket: WebSocket):
                 # prompt = "vegetable, realistic, best quality, cute webtoon style, vibrant flat colors, clean lineart, sharp focus, simple white background"
                 # negative_prompt = "cluttered background, text, logo, worst quality, low quality, photorealistic, 3d, render, sketch, deformed body, blurry"
 
-                prompt = "vegetable, realistic"
-                negative_prompt = "low quality"
 
-                result = model(pipe, resized_image, AI_INPUT_SIZE, prompt, negative_prompt)
+                # classification_result = classification_model()
+                classification_result = "carrot"
+
+                if (temp_result is None) or classification_result != temp_result:
+
+                    prompt = classification_result + ", realistic"
+                    negative_prompt = "low quality"
+                    temp_result = classification_result
+
+                    prompt_embeds, negative_prompt_embeds = pipe.encode_prompt(
+                        prompt=prompt,
+                        negative_prompt=negative_prompt,
+                        device="cuda",
+                        num_images_per_prompt=1,
+                        do_classifier_free_guidance=True,
+                    )
+                
+
+                result = StableDiffusion(pipe, resized_image, INPUT_SIZE, prompt_embeds, negative_prompt_embeds)
 
 
                 # 3. 클라이언트에게 돌려주기 위해 다시 Base64 문자열로 패키징

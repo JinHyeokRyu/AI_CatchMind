@@ -3,10 +3,10 @@ import numpy as np
 import cv2
 from PIL import Image
 # LCM 스케줄러 로드
-from diffusers import StableDiffusionControlNetImg2ImgPipeline, ControlNetModel, LCMScheduler
+from diffusers import StableDiffusionControlNetImg2ImgPipeline, ControlNetModel, LCMScheduler, AutoencoderTiny
 
 # initalize
-def init_model():
+def init_pipe():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # 가벼운 ControlNet Scribble 로드
@@ -23,16 +23,20 @@ def init_model():
         torch_dtype=torch.float16
     )
 
-    # [핵심] 고속 생성을 위한 LCM LoRA 다운로드 및 병합
+    # Tiny VAE 적용
+    pipe.vae = AutoencoderTiny.from_pretrained(
+        "madebyollin/taesd",
+        torch_dtype=torch.float16
+    ).to(device)
+
+    # 고속 생성을 위한 LCM LoRA 다운로드 및 병합
     pipe.load_lora_weights("latent-consistency/lcm-lora-sdv1-5")
-    # pipe.load_lora_weights("handdraw.safetensors")
     pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
 
-    # [핵심] RTX 3050(VRAM 4GB)을 위한 메모리 최적화 기법들
+    # 메모리 최적화 기법
     pipe.enable_xformers_memory_efficient_attention()
-    pipe.enable_attention_slicing()  # 메모리 부하를 줄이기 위해 어텐션을 쪼개서 계산
-    # 만약 여전히 OOM(메모리 부족)이 난다면 아래 줄의 주석을 해제하세요.
-    # pipe.enable_sequential_cpu_offload() 
+    # pipe.enable_attention_slicing()  # 메모리 부하를 줄이기 위해 어텐션을 쪼개서 계산
+    pipe.enable_vae_slicing()
 
     pipe.safety_checker = None
     pipe.requires_safety_checker = False
@@ -68,7 +72,7 @@ def preprocess(image, size):
 # -----------------------------
 # 3. 이미지 생성 함수 (LCM 4 Step 고속 생성)
 # -----------------------------
-def model(pipe, image, target_size, prompt, negative_prompt):
+def StableDiffusion(pipe, image, target_size, prompt_embeds, negative_prompt_embeds):
 
     cv_img = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
@@ -79,15 +83,16 @@ def model(pipe, image, target_size, prompt, negative_prompt):
 
     print('추론 시작!')
     # 추론 수행
-    result = pipe(
-        prompt=prompt,
-        negative_prompt=negative_prompt,
-        image=overlay_pil,       # 채색 가이드용 원본 스케치
-        control_image=edges_pil, # 형태 고정용 흑백 반전 엣지
-        guidance_scale=1.5,      # LCM LoRA 사용 시 1.0 ~ 2.0 사이가 최적입니다.
-        num_inference_steps=4,   # [핵심] 단 4번만 연산하여 RTX 3050에서도 속도 확보
-        strength=0.8             # 0.7~0.8 정도로 설정해야 스케치 형태를 유지하면서 AI가 이쁘게 채색합니다.
-    ).images[0]
+    with torch.inference_mode():
+        result = pipe(
+            prompt_embeds=prompt_embeds,
+            negative_prompt_embeds=negative_prompt_embeds,
+            image=overlay_pil,       # 채색 가이드용 원본 스케치
+            control_image=edges_pil, # 형태 고정용 흑백 반전 엣지
+            guidance_scale=1.5,      # LCM LoRA 사용 시 1.0 ~ 2.0 사이가 최적입니다.
+            num_inference_steps=4,   # [핵심] 단 4번만 연산하여 RTX 3050에서도 속도 확보
+            strength=0.8             # 0.7~0.8 정도로 설정해야 스케치 형태를 유지하면서 AI가 이쁘게 채색합니다.
+        ).images[0]
 
     return result
 
@@ -99,4 +104,4 @@ if __name__ == "__main__":
         print("이미지 파일을 찾을 수 없습니다.")
         exit()
 
-    model(image)
+    StableDiffusion(image)
