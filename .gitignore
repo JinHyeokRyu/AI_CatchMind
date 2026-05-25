@@ -8,6 +8,12 @@ __pycache__/
 .vscode/
 
 # dataset 관련 차단
-AnitaDataset/
+Sketchy/
 *.zip
+*.7z
+*.tar
 *.png
+
+# 모델 관련 차단
+weights/
+*.pth
