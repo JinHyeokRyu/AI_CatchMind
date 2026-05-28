@@ -62,7 +62,7 @@ catchmind_classes = [
 
     # 교통
     'airplane','bicycle','motorcycle',
-    'pickup_truck','helicopter','rocket','sailboat',
+    'pickup truck','helicopter','rocket','sailboat',
 
     # 사물
     'chair','table','door','window','hat','eyeglasses',
@@ -70,10 +70,10 @@ catchmind_classes = [
 
     # 자연/기타
     'flower','tree','volcano','starfish','windmill',
-    'castle','cabin','hot-air_balloon'
+    'castle','cabin','hot air balloon'
 ]
 
-classification_model = resnet_classifier('./weights/resnet34_aug.pth', device=device, num_classes=len(catchmind_classes))
+classification_model = resnet_classifier('./weights/resnet34.pth', device=device, num_classes=len(catchmind_classes))
 transform = get_img_transformer()
 
 
@@ -103,15 +103,15 @@ async def websocket_endpoint(websocket: WebSocket):
                 
                 # 2. [핵심] AI 모델에 들어갈 크기로 리사이즈!
                 # (추후 이 변환된 'resized_image'를 팀원의 AI 모델 입력값으로 넣게 됩니다)
-                resized_image = pil_image.resize((INPUT_SIZE, INPUT_SIZE))
-                print(f"📐 이미지 리사이즈 완료: {pil_image.size} -> {resized_image.size}")
+                # resized_image = pil_image.resize((INPUT_SIZE, INPUT_SIZE))
+                print(f"📐 이미지 리사이즈 완료: {pil_image.size} -> {pil_image.size}")
                 
 
                 # 단순 명료한 프롬프트 (RTX 3050 환경에서는 프롬프트가 너무 길면 무거워집니다)
                 # prompt = "vegetable, realistic, best quality, cute webtoon style, vibrant flat colors, clean lineart, sharp focus, simple white background"
                 # negative_prompt = "cluttered background, text, logo, worst quality, low quality, photorealistic, 3d, render, sketch, deformed body, blurry"
 
-                input_tensor = transform(resized_image).unsqueeze(0).to(device)
+                input_tensor = transform(pil_image).unsqueeze(0).to(device)
 
                 with torch.no_grad():
                     outputs = classification_model(input_tensor)
@@ -119,11 +119,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 _, pred = torch.max(outputs, 1)
                 classification_result = catchmind_classes[pred.item()]
                 print(classification_result)
-                # classification_result = "carrot"
 
                 if (temp_result is None) or classification_result != temp_result:
 
-                    prompt = classification_result + ", realistic"
+                    prompt = classification_result + ", photorealistic, best quality"
+                    print(prompt)
                     negative_prompt = "low quality"
                     temp_result = classification_result
 
@@ -136,7 +136,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     )
                 
 
-                result = StableDiffusion(pipe, resized_image, INPUT_SIZE, prompt_embeds, negative_prompt_embeds)
+                result = StableDiffusion(pipe, pil_image, INPUT_SIZE, prompt_embeds, negative_prompt_embeds)
 
 
                 # 3. 클라이언트에게 돌려주기 위해 다시 Base64 문자열로 패키징

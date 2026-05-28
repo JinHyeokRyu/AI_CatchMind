@@ -14,9 +14,9 @@ catchmind_classes = [
     'cat','dog','bear','elephant','giraffe','lion','tiger',
     'horse','cow','pig','rabbit','duck','penguin','frog','fish',
     'apple','banana','hamburger','hotdog','pizza','bread','strawberry','pineapple',
-    'airplane','bicycle','motorcycle','pickup_truck','helicopter','rocket','sailboat',
+    'airplane','bicycle','motorcycle','pickup truck','helicopter','rocket','sailboat',
     'chair','table','door','window','hat','eyeglasses','hammer','scissors','guitar','violin','umbrella','shoe',
-    'flower','tree','volcano','starfish','windmill','castle','cabin','hot-air_balloon'
+    'flower','tree','volcano','starfish','windmill','castle','cabin','hot air balloon'
 ]
 
 # --- 1. 환경 및 레이아웃 설정 ---

@@ -90,7 +90,8 @@ def StableDiffusion(pipe, image, target_size, prompt_embeds, negative_prompt_emb
             control_image=edges_pil, # 형태 고정용 흑백 반전 엣지
             guidance_scale=1.5,      # LCM LoRA 사용 시 1.0 ~ 2.0 사이가 최적입니다.
             num_inference_steps=4,   # [핵심] 단 4번만 연산하여 RTX 3050에서도 속도 확보
-            strength=0.8             # 0.7~0.8 정도로 설정해야 스케치 형태를 유지하면서 AI가 이쁘게 채색합니다.
+            strength=0.9,             # 0.7~0.8 정도로 설정해야 스케치 형태를 유지하면서 AI가 이쁘게 채색합니다.
+            controlnet_conditioning_scale=0.3   # controlnet 반영 정도 (낮을 수록 반영 x)
         ).images[0]
 
     return result
