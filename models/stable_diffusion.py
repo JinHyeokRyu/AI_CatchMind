@@ -6,8 +6,7 @@ from PIL import Image
 from diffusers import StableDiffusionControlNetImg2ImgPipeline, ControlNetModel, LCMScheduler, AutoencoderTiny
 
 # initalize
-def init_pipe():
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+def init_pipe(device):
 
     # 가벼운 ControlNet Scribble 로드
     controlnet = ControlNetModel.from_pretrained(

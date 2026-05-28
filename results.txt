@@ -1,0 +1,45 @@
+ResNet34
+Total parameters: 21,310,322 (21M)
+
+ResNet34 - finetuning + no_aug
+Test Accuracy: 0.7715
+Top-3 Accuracy: 0.9080
+
+ResNet34 - finetuning + aug (black)
+Test Accuracy: 0.8045
+Top-3 Accuracy: 0.9590
+
+==========================================
+ResNet18
+Total parameters: 11,202,162
+
+ResNet18 - finetuned + no_aug
+Test Accuracy: 0.7500
+Top-3 Accuracy: 0.8860
+
+
+==========================================
+ShuffleNetV2
+Total parameters: 393,042
+
+ShuffleNetV2 - finetuned + no_aug
+Test Accuracy: 0.6365
+Top-3 Accuracy: 0.8115
+
+------ temperature T=2 -------
+ShuffleNetV2 - ResNet34 KD
+Test Accuracy: 0.6160
+Top-3 Accuracy: 0.7880
+
+ShuffleNetV2 - ResNet18 KD
+Test Accuracy: 0.6585
+Top-3 Accuracy: 0.8310
+
+------ temperature T=5 -------
+ShuffleNetV2 - ResNet34 KD
+Test Accuracy: 0.7210
+Top-3 Accuracy: 0.8760
+
+ShuffleNetV2 - ResNet18 KD
+Test Accuracy: 0.6940
+Top-3 Accuracy: 0.8665

@@ -5,7 +5,9 @@ import base64
 from io import BytesIO
 from PIL import Image
 
+import torch
 from models.stable_diffusion import init_pipe, StableDiffusion
+from models.resnet import resnet_classifier, get_img_transformer
 
 # 실행 명령어
 # uvicorn server:app --reload
@@ -30,9 +32,10 @@ manager = ConnectionManager()
 
 # 모델이 요구하는 입력 해상도 설정 
 INPUT_SIZE = 512
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 print('Stable Diffusion 모델을 불러오는 중...')
-pipe = init_pipe()
+pipe = init_pipe(device)
 
 # 더미 입력으로 첫 inference 미리 수행
 dummy = Image.new("RGB",(INPUT_SIZE, INPUT_SIZE),(255,255,255))
@@ -46,6 +49,33 @@ _ = pipe(
     num_inference_steps=4, 
     strength=0.8 
 )
+
+# define classification model
+catchmind_classes = [
+    # 동물
+    'cat','dog','bear','elephant','giraffe','lion','tiger',
+    'horse','cow','pig','rabbit','duck','penguin','frog','fish',
+
+    # 음식
+    'apple','banana','hamburger','hotdog',
+    'pizza','bread','strawberry','pineapple',
+
+    # 교통
+    'airplane','bicycle','motorcycle',
+    'pickup_truck','helicopter','rocket','sailboat',
+
+    # 사물
+    'chair','table','door','window','hat','eyeglasses',
+    'hammer','scissors','guitar','violin','umbrella','shoe',
+
+    # 자연/기타
+    'flower','tree','volcano','starfish','windmill',
+    'castle','cabin','hot-air_balloon'
+]
+
+classification_model = resnet_classifier('./weights/resnet34_aug.pth', device=device, num_classes=len(catchmind_classes))
+transform = get_img_transformer()
+
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -81,9 +111,15 @@ async def websocket_endpoint(websocket: WebSocket):
                 # prompt = "vegetable, realistic, best quality, cute webtoon style, vibrant flat colors, clean lineart, sharp focus, simple white background"
                 # negative_prompt = "cluttered background, text, logo, worst quality, low quality, photorealistic, 3d, render, sketch, deformed body, blurry"
 
+                input_tensor = transform(resized_image).unsqueeze(0).to(device)
 
-                # classification_result = classification_model()
-                classification_result = "carrot"
+                with torch.no_grad():
+                    outputs = classification_model(input_tensor)
+
+                _, pred = torch.max(outputs, 1)
+                classification_result = catchmind_classes[pred.item()]
+                print(classification_result)
+                # classification_result = "carrot"
 
                 if (temp_result is None) or classification_result != temp_result:
 
@@ -94,7 +130,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     prompt_embeds, negative_prompt_embeds = pipe.encode_prompt(
                         prompt=prompt,
                         negative_prompt=negative_prompt,
-                        device="cuda",
+                        device=device,
                         num_images_per_prompt=1,
                         do_classifier_free_guidance=True,
                     )
