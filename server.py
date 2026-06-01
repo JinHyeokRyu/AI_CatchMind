@@ -4,6 +4,7 @@ import json
 import base64
 from io import BytesIO
 from PIL import Image
+import asyncio
 
 import torch
 from models.stable_diffusion import init_pipe, StableDiffusion
@@ -90,6 +91,19 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             # 클라이언트로부터 텍스트 데이터(JSON)를 받습니다.
             data = await websocket.receive_text()
+
+            # 쌓여있는 buffer 비우고 가장 최신의 데이터만 사용
+            while True:
+                try:
+                    newer_data = await asyncio.wait_for(
+                        websocket.receive_text(),
+                        timeout=0.001
+                    )
+                    data = newer_data
+
+                except asyncio.TimeoutError:
+                    break
+
             event_data = json.loads(data)
             
             event_type = event_data.get("type")
