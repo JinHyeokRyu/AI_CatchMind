@@ -30,6 +30,22 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+# 빈 캔버스인지 확인하는 함수
+def is_pure_white_image(b64_str: str) -> bool:
+    try:
+        img_bytes = base64.b64decode(b64_str)
+        img = Image.open(BytesIO(img_bytes)).convert("RGB")
+        
+        # 이미지의 최소/최대 픽셀 값을 가져옴
+        extrema = img.getextrema()
+        # 모든 채널(R, G, B)의 최솟값이 255라면 완전히 흰색인 상태입니다.
+        if extrema[0][0] == 255 and extrema[1][0] == 255 and extrema[2][0] == 255:
+            return True
+    except Exception as e:
+        print(f"이미지 검사 중 에러: {e}")
+    return False
+
+
 # 모델이 요구하는 입력 해상도 설정 
 INPUT_SIZE = 512
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -81,26 +97,32 @@ async def websocket_endpoint(websocket: WebSocket):
             # 유저가 획을 마쳐서 캔버스 전체 이미지가 날아왔을 때
             if event_type == "stroke_canvas":
                 # Base64 문자열로 인코딩된 이미지 데이터를 복원합니다.
-                img_b64 = event_data.get("image")
-                img_bytes = base64.b64decode(img_b64)
+                img_edge = event_data.get("image_edge")
+                
+                if is_pure_white_image(img_edge):          
+                    await websocket.send_text(json.dumps({
+                        "type": "ai_response",
+                        "image": img_edge
+                    }))
+                    continue
+                
+                img_color = event_data.get("image_color")
+
+                img_edge_bytes = base64.b64decode(img_edge)
+                img_color_bytes = base64.b64decode(img_color)
                 
                 # 1. PIL 라이브러리로 원본 이미지(512x512) 로드
-                pil_image = Image.open(BytesIO(img_bytes))
+                pil_edge = Image.open(BytesIO(img_edge_bytes))
+                pil_color = Image.open(BytesIO(img_color_bytes))
                 
-                # 2. [핵심] AI 모델에 들어갈 크기로 리사이즈!
-                # (추후 이 변환된 'resized_image'를 팀원의 AI 모델 입력값으로 넣게 됩니다)
-                # resized_image = pil_image.resize((INPUT_SIZE, INPUT_SIZE))
-                # print(f"📐 이미지 리사이즈 완료: {pil_image.size} -> {pil_image.size}")
-                
-
                 # 단순 명료한 프롬프트 (RTX 3050 환경에서는 프롬프트가 너무 길면 무거워집니다)
                 # prompt = "vegetable, realistic, best quality, cute webtoon style, vibrant flat colors, clean lineart, sharp focus, simple white background"
                 # negative_prompt = "cluttered background, text, logo, worst quality, low quality, photorealistic, 3d, render, sketch, deformed body, blurry"
 
-                input_tensor = transform(pil_image).unsqueeze(0).to(device)
+                input_edge = transform(pil_edge).unsqueeze(0).to(device)
 
                 with torch.no_grad():
-                    outputs = classification_model(input_tensor)
+                    outputs = classification_model(input_edge)
 
                 _, pred = torch.max(outputs, 1)
                 classification_result = catchmind_classes[pred.item()]
@@ -122,7 +144,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     )
                 
 
-                result = StableDiffusion(pipe, pil_image, INPUT_SIZE, prompt_embeds, negative_prompt_embeds)
+                result = StableDiffusion(pipe, pil_color, INPUT_SIZE, prompt_embeds, negative_prompt_embeds)
 
 
                 # 3. 클라이언트에게 돌려주기 위해 다시 Base64 문자열로 패키징
