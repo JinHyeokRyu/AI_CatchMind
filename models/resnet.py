@@ -2,8 +2,7 @@ import torch
 import torch.nn as nn
 from torchvision import models, transforms
 
-def get_img_transformer():
-
+def img_transformer():
     transform = transforms.Compose([
         transforms.Resize((224, 224)),   # 모델 입력 크기에 맞게 수정
         transforms.ToTensor(),           # PIL -> Tensor, [0,255] -> [0,1]
@@ -14,8 +13,8 @@ def get_img_transformer():
     ])
     return transform
 
-def resnet_classifier(weights_path, device, num_classes=50):
 
+def resnet_classifier(weights_path, device, num_classes=50):
     model = models.resnet34(weights=None)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
 

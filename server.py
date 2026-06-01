@@ -7,7 +7,7 @@ from PIL import Image
 
 import torch
 from models.stable_diffusion import init_pipe, StableDiffusion
-from models.resnet import resnet_classifier, get_img_transformer
+from models.resnet import resnet_classifier, img_transformer
 
 # 실행 명령어
 # uvicorn server:app --reload
@@ -37,19 +37,6 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print('Stable Diffusion 모델을 불러오는 중...')
 pipe = init_pipe(device)
 
-# 더미 입력으로 첫 inference 미리 수행
-dummy = Image.new("RGB",(INPUT_SIZE, INPUT_SIZE),(255,255,255))
-
-_ = pipe(
-    prompt="",
-    negative_prompt="",
-    image=dummy,       
-    control_image=dummy, 
-    guidance_scale=1.5,  
-    num_inference_steps=4, 
-    strength=0.8 
-)
-
 # define classification model
 catchmind_classes = [
     # 동물
@@ -74,8 +61,7 @@ catchmind_classes = [
 ]
 
 classification_model = resnet_classifier('./weights/resnet34.pth', device=device, num_classes=len(catchmind_classes))
-transform = get_img_transformer()
-
+transform = img_transformer()
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -104,7 +90,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 # 2. [핵심] AI 모델에 들어갈 크기로 리사이즈!
                 # (추후 이 변환된 'resized_image'를 팀원의 AI 모델 입력값으로 넣게 됩니다)
                 # resized_image = pil_image.resize((INPUT_SIZE, INPUT_SIZE))
-                print(f"📐 이미지 리사이즈 완료: {pil_image.size} -> {pil_image.size}")
+                # print(f"📐 이미지 리사이즈 완료: {pil_image.size} -> {pil_image.size}")
                 
 
                 # 단순 명료한 프롬프트 (RTX 3050 환경에서는 프롬프트가 너무 길면 무거워집니다)

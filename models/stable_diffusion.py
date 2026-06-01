@@ -41,6 +41,20 @@ def init_pipe(device):
     pipe.requires_safety_checker = False
     pipe.to(device)
 
+
+    # 더미 입력으로 첫 inference 미리 수행
+    dummy = Image.new("RGB",(512, 512),(255,255,255))
+
+    _ = pipe(
+        prompt="",
+        negative_prompt="",
+        image=dummy,       
+        control_image=dummy, 
+        guidance_scale=1.5,  
+        num_inference_steps=4, 
+        strength=0.8 
+    )
+
     return pipe
 
 
