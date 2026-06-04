@@ -31,6 +31,8 @@
 본 repository를 clone 후, 터미널에 아래의 명령어를 입력합니다. (Python version=3.10.20)
 
 ```bash
+pip install torch==2.1.0+cu118 torchvision==0.16.0+cu118 xformers==0.0.22.post7+cu118 --extra-index-url https://download.pytorch.org/whl/cu118
+
 pip install -r requirements.txt
 ```
 
