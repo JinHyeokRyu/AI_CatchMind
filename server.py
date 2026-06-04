@@ -125,14 +125,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 img_edge_bytes = base64.b64decode(img_edge)
                 img_color_bytes = base64.b64decode(img_color)
                 
-                # 1. PIL 라이브러리로 원본 이미지(512x512) 로드
+                # PIL 라이브러리로 원본 이미지(512x512) 로드
                 pil_edge = Image.open(BytesIO(img_edge_bytes))
                 pil_color = Image.open(BytesIO(img_color_bytes))
-                
-                # 단순 명료한 프롬프트 (RTX 3050 환경에서는 프롬프트가 너무 길면 무거워집니다)
-                # prompt = "vegetable, realistic, best quality, cute webtoon style, vibrant flat colors, clean lineart, sharp focus, simple white background"
-                # negative_prompt = "cluttered background, text, logo, worst quality, low quality, photorealistic, 3d, render, sketch, deformed body, blurry"
-
+ 
                 input_edge = transform(pil_edge).unsqueeze(0).to(device)
 
                 with torch.no_grad():
@@ -161,12 +157,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 result = StableDiffusion(pipe, pil_color, INPUT_SIZE, prompt_embeds, negative_prompt_embeds)
 
 
-                # 3. 클라이언트에게 돌려주기 위해 다시 Base64 문자열로 패키징
+                # 클라이언트에게 돌려주기 위해 다시 Base64 문자열로 패키징
                 buffered = BytesIO()
                 result.save(buffered, format="PNG")
                 response_b64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
                 
-                # 4. 클라이언트로 전송 (Echo)
+                # 클라이언트로 전송 (Echo)
                 response_payload = {
                     "type": "ai_response",
                     "image": response_b64

@@ -31,7 +31,7 @@ SCREEN_WIDTH = HALF_SCREEN_WIDTH * 2
 SCREEN_HEIGHT = CANVAS_SIZE + MARGIN_Y_TOP + MARGIN_Y_BOTTOM
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption("AI Catch-Mind! 🎨 (Timer & Countdown Mode)")
+pygame.display.set_caption("AI Catch-Mind! 🎨")
 
 BACKGROUND_COLOR = (74, 144, 226)   
 CANVAS_BG = (255, 255, 255)         
@@ -56,36 +56,35 @@ LEFT_CANVAS_Y = MARGIN_Y_TOP
 RIGHT_CANVAS_X = (CENTER_LINE_X + (SCREEN_WIDTH - CENTER_LINE_X) // 2) - (CANVAS_SIZE // 2)
 RIGHT_CANVAS_Y = MARGIN_Y_TOP
 
-user_canvas = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
+user_canvas = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))        
+user_canvas_edges = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))  
+
 user_canvas.fill(CANVAS_BG)
+user_canvas_edges.fill(CANVAS_BG)
+
 ai_canvas = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
 ai_canvas.fill(CANVAS_BG)
 
 # --- ⏱️ 타이머 및 게임 상태 관련 변수 정의 ---
-GAME_STATE = "COUNTDOWN"  
+GAME_STATE = "START_SCREEN"  
 state_start_time = time.time()  
 
-# 타이머 규칙 설정
 LIMIT_TIME = 100.0        
-COUNTDOWN_DURATION = 4.0  # ⏳ [수정] 3초(숫자) + 1초(Start! 대기) = 총 4초로 변경
+COUNTDOWN_DURATION = 4.0  
 LOCKOUT_DURATION = 3.0
 
-# 🎯 [추가] 스코어링 규칙 및 누적 변수 설정
-MAX_SCORE = 100           # 라운드당 최대 점수 (M)
-current_round_score = MAX_SCORE  # 실시간으로 깎여서 화면에 보여줄 현재 점수
-total_score = 0           # 게임 전체 누적 총점
+MAX_SCORE = 100           
+current_round_score = MAX_SCORE  
+total_score = 0           
 
-# 라운드 규칙 추가
-TOTAL_ROUNDS = 5           # R = 총 5라운드 진행으로 가정
-current_round = 1          # 현재 라운드 추적 변수
+TOTAL_ROUNDS = 5           
+current_round = 1          
 
-# 타이머 바 디자인 설정 변수
 BAR_EMPTY_COLOR = (180, 180, 180)  
 BAR_FILL_COLOR = (46, 204, 113)    
 BAR_HEIGHT = 12                    
 
-# 기존 게임 변수
-is_solved = False                                  
+is_solved = False                                   
 pen_active = False  
 
 opponent_guess_text = ""
@@ -93,13 +92,10 @@ opponent_guess_time = 0.0
 current_stroke_points = []
 
 # --중복 방지 단어 풀 초기화--
-# 원본 리스트를 복사하여 이번 판에 사용할 가변 주머니를 만듭니다.
 current_game_pool = catchmind_classes.copy()
-random.shuffle(current_game_pool)  # 미리 한 번 무작위로 섞어둡니다.
+random.shuffle(current_game_pool)  
 
-# 첫 번째 문제 추출 (가장 뒤의 단어를 뽑으면서 리스트에서 제거)
 current_answer = current_game_pool.pop()  
-
 
 # --- 🌐 웹소켓 클라이언트 연동 설정 ---
 SERVER_URL = "ws://localhost:8000/ws"
@@ -108,25 +104,36 @@ ws = None
 def send_canvas_to_server():
     if ws:
         from PIL import Image
-        img_bytes = pygame.image.tobytes(user_canvas, "RGB") 
-        pil_img = Image.frombytes("RGB", (CANVAS_SIZE, CANVAS_SIZE), img_bytes)
-        buffered = BytesIO()
-        pil_img.save(buffered, format="PNG")
-        img_b64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-        payload = {"type": "stroke_canvas", "image": img_b64}
+        img_bytes_color = pygame.image.tobytes(user_canvas, "RGB") 
+        pil_img_color = Image.frombytes("RGB", (CANVAS_SIZE, CANVAS_SIZE), img_bytes_color)
+        buffered_color = BytesIO()
+        pil_img_color.save(buffered_color, format="PNG")
+        img_color_b64 = base64.b64encode(buffered_color.getvalue()).decode('utf-8')
+        
+        img_bytes_edge = pygame.image.tobytes(user_canvas_edges, "RGB") 
+        pil_img_edge = Image.frombytes("RGB", (CANVAS_SIZE, CANVAS_SIZE), img_bytes_edge)
+        buffered_edge = BytesIO()
+        pil_img_edge.save(buffered_edge, format="PNG")
+        img_edge_b64 = base64.b64encode(buffered_edge.getvalue()).decode('utf-8')
+        
+        payload = {
+            "type": "stroke_canvas", 
+            "image_edge": img_edge_b64,    
+            "image_color": img_color_b64   
+        }
         try:
             ws.send(json.dumps(payload))
         except Exception as e:
             print(f"⚠️ 서버 데이터 전송 실패: {e}")
 
 # --- 🔄 Undo / Redo 시스템 ---
-undo_stack = [(user_canvas.copy(), 0)]
+undo_stack = [(user_canvas.copy(), user_canvas_edges.copy(), 0)]
 redo_stack = []
 
 def save_state(stroke_count=0):
     global undo_stack, redo_stack
     redo_stack.clear()
-    undo_stack.append((user_canvas.copy(), stroke_count))
+    undo_stack.append((user_canvas.copy(), user_canvas_edges.copy(), stroke_count))
     if len(undo_stack) > 10:  
         undo_stack.pop(0)
 
@@ -135,8 +142,9 @@ def handle_undo():
     if len(undo_stack) > 1:
         state = undo_stack.pop()
         redo_stack.append(state)
-        prev_surface, prev_stroke_count = undo_stack[-1]
-        user_canvas.blit(prev_surface, (0, 0))
+        prev_color_surface, prev_edge_surface, prev_stroke_count = undo_stack[-1]
+        user_canvas.blit(prev_color_surface, (0, 0))
+        user_canvas_edges.blit(prev_edge_surface, (0, 0))
         if prev_stroke_count > 1:
             send_canvas_to_server()
 
@@ -145,8 +153,9 @@ def handle_redo():
     if len(redo_stack) > 0:
         state = redo_stack.pop()
         undo_stack.append(state)
-        next_surface, next_stroke_count = state
-        user_canvas.blit(next_surface, (0, 0))
+        next_color_surface, next_edge_surface, next_stroke_count = state
+        user_canvas.blit(next_color_surface, (0, 0))
+        user_canvas_edges.blit(next_edge_surface, (0, 0))
         if next_stroke_count > 1:
             send_canvas_to_server()
 
@@ -179,8 +188,6 @@ def bg_receive_loop():
                 res_data = json.loads(response)
                 
                 if res_data.get("type") == "ai_response":
-                    # 🛑 [핵심 버그 수정] 오직 플레이 중일 때만 서버에서 온 그림을 반영합니다.
-                    # 시간초과(LOCKOUT)되거나 카운트다운(COUNTDOWN) 중일 때는 서버 응답을 무시(드롭)합니다.
                     if GAME_STATE == "PLAYING":
                         res_b64 = res_data.get("image")
                         res_bytes = base64.b64decode(res_b64)
@@ -191,7 +198,6 @@ def bg_receive_loop():
                         scaled_img = pygame.transform.smoothscale(incoming_img, (CANVAS_SIZE, CANVAS_SIZE))
                         ai_canvas.blit(scaled_img, (0, 0))
                     else:
-                        # 플레이 중이 아닐 때 온 패킷은 로그만 남기거나 조용히 폐기합니다.
                         print("🐾 [패킷 폐기] 플레이 시간이 종료된 후 도착한 이미지이므로 화면 반영을 차단합니다.")
                         
             except Exception as e:
@@ -215,6 +221,12 @@ game_ui_font = pygame.font.SysFont("malgungothic", 26, bold=True)
 popup_font = pygame.font.SysFont("malgungothic", 20, bold=True)
 countdown_font = pygame.font.SysFont("arial", 72, bold=True)
 game_over_font = pygame.font.SysFont("arial", 40, bold=True)
+
+# 🎯 [수정] 시작 화면 폰트 스케일 대폭 상향 및 전원 굵게(bold=True) 처리
+start_title_font = pygame.font.SysFont("malgungothic", 64, bold=True)       # 48 -> 64 크기 상향
+start_desc_title_font = pygame.font.SysFont("malgungothic", 28, bold=True)  # 22 -> 28 크기 상향
+start_desc_body_font = pygame.font.SysFont("malgungothic", 20, bold=True)   # 16 -> 20 크기 상향 및 Bold 강제
+start_btn_font = pygame.font.SysFont("malgungothic", 26, bold=True)
 
 INPUT_BOX_WIDTH, INPUT_BOX_HEIGHT = 280, 44
 input_box_x = RIGHT_CANVAS_X + (CANVAS_SIZE - INPUT_BOX_WIDTH) // 2 + 35
@@ -258,6 +270,9 @@ dragging_slider = False
 drawing = False
 last_pos = None
 
+# [Game Start] 버튼 영역 설정
+start_button_rect = pygame.Rect((SCREEN_WIDTH // 2) - 120, SCREEN_HEIGHT - 160, 240, 60)
+
 def is_inside_user_canvas(pos):
     x, y = pos
     return (LEFT_CANVAS_X <= x < LEFT_CANVAS_X + CANVAS_SIZE) and \
@@ -266,17 +281,21 @@ def is_inside_user_canvas(pos):
 def draw_on_canvas(start, end):
     color = CANVAS_BG if is_eraser else current_brush_color
     thick = ERASER_THICKNESS if is_eraser else brush_thickness
+    edge_layer_color = CANVAS_BG if is_eraser else (0, 0, 0)
+    
     dx = end[0] - start[0]
     dy = end[1] - start[1]
     distance = max(abs(dx), abs(dy))
     if distance == 0:
         pygame.draw.circle(user_canvas, color, start, thick // 2)
+        pygame.draw.circle(user_canvas_edges, edge_layer_color, start, thick // 2)
         return
     for i in range(int(distance) + 1):
         t = i / distance
         curr_x = int(start[0] + dx * t)
         curr_y = int(start[1] + dy * t)
         pygame.draw.circle(user_canvas, color, (curr_x, curr_y), thick // 2)
+        pygame.draw.circle(user_canvas_edges, edge_layer_color, (curr_x, curr_y), thick // 2)
 
 # --- 2. 게임 메인 루프 ---
 clock = pygame.time.Clock()
@@ -287,9 +306,14 @@ while running:
     elapsed_in_state = current_time - state_start_time 
     
     # --- ⏱️ 상태 머신 제어 파트 ---
-    if GAME_STATE == "COUNTDOWN":
+    if GAME_STATE == "START_SCREEN":
         pen_active = False
-        current_round_score = MAX_SCORE  # 카운트다운 중에는 항상 만점 상태 유지  
+        drawing = False
+        pygame.mouse.set_visible(True)
+
+    elif GAME_STATE == "COUNTDOWN":
+        pen_active = False
+        current_round_score = MAX_SCORE  
         if elapsed_in_state >= COUNTDOWN_DURATION:
             GAME_STATE = "PLAYING"
             state_start_time = current_time  
@@ -297,8 +321,6 @@ while running:
             
     elif GAME_STATE == "PLAYING":
         decayed_score = MAX_SCORE * (1.0 - (elapsed_in_state / LIMIT_TIME))
-
-        # 최소 10% 점수 보장 (하한선 배치)
         min_guaranteed_score = MAX_SCORE * 0.1
         current_round_score = int(max(decayed_score, min_guaranteed_score))
 
@@ -308,39 +330,30 @@ while running:
             state_start_time = current_time  
             pen_active = False  
             drawing = False
-
-            print("\n========================================")
-            print(f"⏰ [시간 초과] 제한 시간 {LIMIT_TIME}초가 경과했습니다.")
-            print(f"❌ 획득 점수: 0 점 (종료 직전 점수: {current_round_score}점)")
-            print(f"🏆 누적 총점: {total_score} 점 (변동 없음)")
-            print("========================================\n")
             
     elif GAME_STATE == "LOCKOUT":
         pen_active = False  
         if elapsed_in_state >= LOCKOUT_DURATION:
-            # 🏁 [라운드 종료 체크]
             if current_round < TOTAL_ROUNDS:
-                # 다음 라운드 진입 전초 작업
                 current_round += 1
-                # 🎯 [수정] 중복 없는 주머니에서 다음 단어 꺼내기
                 current_answer = current_game_pool.pop()
                 is_solved = False
+                
                 user_canvas.fill(CANVAS_BG)  
+                user_canvas_edges.fill(CANVAS_BG)  
                 ai_canvas.fill(CANVAS_BG)
                 save_state(stroke_count=0) 
                 
                 GAME_STATE = "COUNTDOWN"
                 state_start_time = time.time()  
             else:
-                # 🏆 모든 라운드가 끝났다면 최종 종료 상태로 전환!
                 GAME_STATE = "GAME_OVER"
                 state_start_time = time.time()
-                print(f"🏁 게임 오버! 총 {TOTAL_ROUNDS}라운드 종료. 최종 누적 점수: {total_score}점")
 
     mouse_pos = pygame.mouse.get_pos()
     if pen_active and (is_inside_user_canvas(mouse_pos) or dragging_slider):
         pygame.mouse.set_visible(False)
-    else:
+    elif GAME_STATE != "START_SCREEN":
         pygame.mouse.set_visible(True)
 
     for event in pygame.event.get():
@@ -348,41 +361,50 @@ while running:
             running = False
             
         elif event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1 and pen_active:  
-                if is_inside_user_canvas(mouse_pos):
-                    canvas_pos = (mouse_pos[0] - LEFT_CANVAS_X, mouse_pos[1] - LEFT_CANVAS_Y)
-                    if is_fill_mode:
-                        flood_fill(user_canvas, canvas_pos, current_brush_color)
-                        save_state(stroke_count=999) 
-                        send_canvas_to_server() 
+            if event.button == 1:
+                if GAME_STATE == "START_SCREEN":
+                    if start_button_rect.collidepoint(mouse_pos):
+                        GAME_STATE = "COUNTDOWN"
+                        state_start_time = time.time()
+                    continue
+
+                if pen_active:
+                    if is_inside_user_canvas(mouse_pos):
+                        canvas_pos = (mouse_pos[0] - LEFT_CANVAS_X, mouse_pos[1] - LEFT_CANVAS_Y)
+                        if is_fill_mode:
+                            flood_fill(user_canvas, canvas_pos, current_brush_color)
+                            save_state(stroke_count=999) 
+                            send_canvas_to_server() 
+                        else:
+                            drawing = True
+                            last_pos = canvas_pos
+                            current_stroke_points = [canvas_pos] 
+                            draw_on_canvas(last_pos, last_pos)
                     else:
-                        drawing = True
-                        last_pos = canvas_pos
-                        current_stroke_points = [canvas_pos] 
-                        draw_on_canvas(last_pos, last_pos)
-                else:
-                    for btn in color_buttons:
-                        if btn["rect"].collidepoint(mouse_pos):
-                            current_brush_color = btn["color"]
-                            is_eraser, is_fill_mode = False, False
+                        for btn in color_buttons:
+                            if btn["rect"].collidepoint(mouse_pos):
+                                current_brush_color = btn["color"]
+                                is_eraser, is_fill_mode = False, False
+                                
+                        if btn_fill.collidepoint(mouse_pos):
+                            is_fill_mode, is_eraser = True, False
+                        elif btn_eraser.collidepoint(mouse_pos):
+                            is_eraser, is_fill_mode = True, False
+                        elif btn_undo.collidepoint(mouse_pos):
+                            handle_undo()
+                        elif btn_redo.collidepoint(mouse_pos):
+                            handle_redo()
+                        elif btn_clear.collidepoint(mouse_pos):
+                            user_canvas.fill(CANVAS_BG)
+                            user_canvas_edges.fill(CANVAS_BG)
+                            save_state(stroke_count=0) 
+                            send_canvas_to_server()
                             
-                    if btn_fill.collidepoint(mouse_pos):
-                        is_fill_mode, is_eraser = True, False
-                    elif btn_eraser.collidepoint(mouse_pos):
-                        is_eraser, is_fill_mode = True, False
-                    elif btn_undo.collidepoint(mouse_pos):
-                        handle_undo()
-                    elif btn_redo.collidepoint(mouse_pos):
-                        handle_redo()
-                    elif btn_clear.collidepoint(mouse_pos):
-                        user_canvas.fill(CANVAS_BG)
-                        save_state(stroke_count=0) 
-                        
-                    if slider_handle_rect.collidepoint(mouse_pos) or slider_rect.collidepoint(mouse_pos):
-                        dragging_slider = True
+                        if slider_handle_rect.collidepoint(mouse_pos) or slider_rect.collidepoint(mouse_pos):
+                            dragging_slider = True
 
         elif event.type == pygame.MOUSEBUTTONUP:
-            if event.button == 1:
+            if event.button == 1 and GAME_STATE != "START_SCREEN":
                 if drawing:
                     drawing = False
                     last_pos = None
@@ -417,24 +439,29 @@ while running:
             if GAME_STATE == "PLAYING":
                 editing_text = event.text
         elif event.type == pygame.KEYDOWN:
+            if GAME_STATE == "START_SCREEN":
+                if event.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    GAME_STATE = "COUNTDOWN"
+                    state_start_time = time.time()
+                continue
+
             if GAME_STATE == "GAME_OVER":
-                if event.key == pygame.K_r:  # 'R' 키를 누르면 리스타트!
+                if event.key == pygame.K_r:  
                     total_score = 0
                     current_round = 1
                     current_round_score = MAX_SCORE
                     is_solved = False
                     user_canvas.fill(CANVAS_BG)
+                    user_canvas_edges.fill(CANVAS_BG)
                     ai_canvas.fill(CANVAS_BG)
                     save_state(stroke_count=0)
                     
-                    # 🎯 [추가] 새 게임을 위해 단어 주머니 리셋 및 셔플
                     current_game_pool = catchmind_classes.copy()
                     random.shuffle(current_game_pool)
-                    current_answer = current_game_pool.pop() # 새 첫 문제
+                    current_answer = current_game_pool.pop() 
 
                     GAME_STATE = "COUNTDOWN"
                     state_start_time = time.time()
-                    print("🔄 게임을 처음부터 다시 시작합니다!")
             if event.key == pygame.K_RETURN and GAME_STATE == "PLAYING":
                 final_guess = input_text + editing_text
                 final_guess = final_guess.strip()
@@ -443,8 +470,7 @@ while running:
                     opponent_guess_text = final_guess
                     opponent_guess_time = current_time
                     if ws:
-                        try:
-                            ws.send(json.dumps({"type": "guess", "text": final_guess}))
+                        try: ws.send(json.dumps({"type": "guess", "text": final_guess}))
                         except: pass
                     
                     if final_guess == current_answer and not is_solved:
@@ -453,15 +479,7 @@ while running:
                         state_start_time = current_time  
                         pen_active = False  
                         drawing = False
-
-                        # 🎯 [추가] 맞춘 순간 정지된 라운드 점수를 총점에 누적!
                         total_score += current_round_score
-                        print("\n========================================")
-                        print(f"🥇 [정답 돌파] 제시어: '{current_answer}'")
-                        print(f"✨ 획득 점수: +{current_round_score} 점")
-                        print(f"🏆 누적 총점: {total_score} 점")
-                        print("========================================\n")
-
                     input_text, editing_text = "", ""
             elif event.key == pygame.K_BACKSPACE and len(editing_text) == 0:
                 input_text = input_text[:-1]
@@ -469,8 +487,10 @@ while running:
     # --- 3. 렌더링 영역 ---
     screen.fill(BACKGROUND_COLOR)
     
+    # 🎯 [수정] 왼쪽 도화지도 PLAYING 상태일 때만 정답 단어가 보이도록 예외 처리
     left_center_x = LEFT_CANVAS_X + (CANVAS_SIZE // 2)
-    ans_text_surf = game_ui_font.render(f"정답: {current_answer}", True, (245, 215, 80)) 
+    display_left_ans = current_answer if GAME_STATE == "PLAYING" else "???"
+    ans_text_surf = game_ui_font.render(f"정답: {display_left_ans}", True, (245, 215, 80)) 
     screen.blit(ans_text_surf, ans_text_surf.get_rect(center=(left_center_x, LEFT_CANVAS_Y - 50)))
     
     right_center_x = RIGHT_CANVAS_X + (CANVAS_SIZE // 2)
@@ -478,14 +498,12 @@ while running:
     ai_text_surf = game_ui_font.render(f"정답: {display_right_ans}", True, (245, 215, 80))
     screen.blit(ai_text_surf, ai_text_surf.get_rect(center=(right_center_x, RIGHT_CANVAS_Y - 50)))
 
-    # 📏 [슬림형 타이머 바 연산 반영]
     BAR_MARGIN_X = 40  
     REDUCED_BAR_WIDTH = CANVAS_SIZE - (BAR_MARGIN_X * 2)  
     
     for canvas_start_x in [LEFT_CANVAS_X, RIGHT_CANVAS_X]:
         bar_x_pos = canvas_start_x + BAR_MARGIN_X  
         bar_y_pos = LEFT_CANVAS_Y - 90  
-        
         pygame.draw.rect(screen, BAR_EMPTY_COLOR, (bar_x_pos, bar_y_pos, REDUCED_BAR_WIDTH, BAR_HEIGHT), border_radius=4)
         
         if GAME_STATE == "PLAYING":
@@ -493,15 +511,50 @@ while running:
             current_bar_width = int(REDUCED_BAR_WIDTH * time_ratio)
             if current_bar_width > 0:
                 pygame.draw.rect(screen, BAR_FILL_COLOR, (bar_x_pos, bar_y_pos, current_bar_width, BAR_HEIGHT), border_radius=4)
-        elif GAME_STATE == "COUNTDOWN":
+        elif GAME_STATE in ["COUNTDOWN", "START_SCREEN"]:
             pygame.draw.rect(screen, BAR_FILL_COLOR, (bar_x_pos, bar_y_pos, REDUCED_BAR_WIDTH, BAR_HEIGHT), border_radius=4)
 
-    if opponent_guess_text and (current_time - opponent_guess_time <= 1.0):
-        popup_surf = popup_font.render(f"상대방 입력: {opponent_guess_text}", True, (255, 94, 85)) 
-        popup_x = left_center_x + (ans_text_surf.get_width() // 2) + 20
-        screen.blit(popup_surf, (popup_x, LEFT_CANVAS_Y - 60))
+    # --- 💬 [Y축 높이 보정] 상대방 입력 텍스트 제어 ---
+    if opponent_guess_text and (current_time - opponent_guess_time <= 1.0): # 1초 유지 반영
+        
+        # 1. 스프링을 피하기 위해 기본 Y 좌표를 위로 6픽셀 더 올림 (기존 -46 -> -52)
+        base_y = LEFT_CANVAS_Y - 52  
+        
+        # 2. 레이아웃 가로 한계선 설정 (중앙선 침범 방지)
+        start_x = left_center_x + (game_ui_font.render(f"정답: {display_left_ans}", True, (0,0,0)).get_width() // 2) + 20
+        max_allowed_width = CENTER_LINE_X - start_x - 15 
+        
+        # 3. 픽셀 두께 기반 개행 여부 사전 검사
+        title_text = "상대방 입력:"
+        full_raw_text = f"{title_text} {opponent_guess_text}"
+        
+        total_w, _ = popup_font.size(full_raw_text)
+        
+        # --- [분기 A] 가로 한계선을 넘지 않는 경우 (기존처럼 한 줄로 깔끔하게 출력) ---
+        if total_w <= max_allowed_width:
+            single_surf = popup_font.render(full_raw_text, True, (255, 94, 85))
+            screen.blit(single_surf, (start_x, base_y))
+            
+        # --- [분기 B] 한계선을 넘어서 개행이 필요한 경우 (타이틀과 내용 분리) ---
+        else:
+            # 스프링에 절대 가려지지 않도록 1층 타이틀 위치를 정교하게 조정 (base_y - 14)
+            title_surf = popup_font.render(title_text, True, (255, 94, 85))
+            screen.blit(title_surf, (start_x, base_y - 14)) 
+            
+            # 2층에 배치될 텍스트 조립 및 말줄임표(...) 검사
+            line2_text = ""
+            for char in opponent_guess_text:
+                test_w, _ = popup_font.size(line2_text + char + "...")
+                if test_w <= max_allowed_width:
+                    line2_text += char
+                else:
+                    line2_text += "..."
+                    break
+            
+            # 2층 내용은 도화지 테두리를 침범하지 않는 선에서 아래에 안착 (base_y + 10)
+            line2_surf = popup_font.render(line2_text, True, (255, 94, 85))
+            screen.blit(line2_surf, (start_x, base_y + 10))
 
-    # 도화지 아웃라인 박스 및 스프링 드로잉
     BORDER_THICK = 8
     pygame.draw.rect(screen, BORDER_COLOR, (LEFT_CANVAS_X - BORDER_THICK, LEFT_CANVAS_Y - BORDER_THICK, CANVAS_SIZE + (BORDER_THICK*2), CANVAS_SIZE + (BORDER_THICK*2)), border_radius=4)
     pygame.draw.rect(screen, BORDER_COLOR, (RIGHT_CANVAS_X - BORDER_THICK, RIGHT_CANVAS_Y - BORDER_THICK, CANVAS_SIZE + (BORDER_THICK*2), CANVAS_SIZE + (BORDER_THICK*2)), border_radius=4)
@@ -519,24 +572,17 @@ while running:
     for dot_y in range(0, SCREEN_HEIGHT, 20):
         pygame.draw.circle(screen, BORDER_COLOR, (CENTER_LINE_X, dot_y), 3)
 
-    # ⏱️ [수정] 4초 구조에 대응하는 3, 2, 1, Start! 실시간 텍스트 오버레이 매핑
     if GAME_STATE == "COUNTDOWN":
-        if elapsed_in_state < 1.0:
-            count_str = "3"
-        elif elapsed_in_state < 2.0:
-            count_str = "2"
-        elif elapsed_in_state < 3.0:
-            count_str = "1"
-        else:
-            count_str = "Start!"  # 3.0초 ~ 4.0초 구간 동안 온전하게 화면에 머묾
+        if elapsed_in_state < 1.0: count_str = "3"
+        elif elapsed_in_state < 2.0: count_str = "2"
+        elif elapsed_in_state < 3.0: count_str = "1"
+        else: count_str = "Start!"  
             
         text_color = (255, 60, 60) 
         overlay_surf = countdown_font.render(count_str, True, text_color)
-        
         screen.blit(overlay_surf, overlay_surf.get_rect(center=(LEFT_CANVAS_X + CANVAS_SIZE // 2, LEFT_CANVAS_Y + CANVAS_SIZE // 2)))
         screen.blit(overlay_surf, overlay_surf.get_rect(center=(RIGHT_CANVAS_X + CANVAS_SIZE // 2, RIGHT_CANVAS_Y + CANVAS_SIZE // 2)))
 
-    # 컬러 팔레트 및 컨트롤러 UI 렌더링
     for btn in color_buttons:
         pygame.draw.rect(screen, btn["color"], btn["rect"], border_radius=4)
         if current_brush_color == btn["color"] and not is_eraser and not is_fill_mode:
@@ -579,22 +625,60 @@ while running:
             pygame.draw.circle(screen, current_brush_color, mouse_pos, brush_thickness // 2)
             pygame.draw.circle(screen, (255, 255, 255), mouse_pos, brush_thickness // 2, width=1)
 
-    # --- 렌더링 파트 최하단 ---
     if GAME_STATE == "GAME_OVER":
-        # 파란색 (R: 30, G: 80, B: 220) 또는 선명한 파란색
         FINAL_SCORE_COLOR = (30, 144, 255) 
-        
-        # 표시할 문자열 생성
         final_text = f"Final Score: {total_score}"
         text_overlay = game_over_font.render(final_text, True, FINAL_SCORE_COLOR)
-        
-        # 각 캔버스의 정중앙 좌표 계산 후 반투명 사각형이나 텍스트를 덮어씌움
-        # 캔버스 중앙 = 시작X + (CANVAS_SIZE // 2) , 시작Y + (CANVAS_SIZE // 2)
         left_canvas_center = (LEFT_CANVAS_X + CANVAS_SIZE // 2, LEFT_CANVAS_Y + CANVAS_SIZE // 2)
         right_canvas_center = (RIGHT_CANVAS_X + CANVAS_SIZE // 2, RIGHT_CANVAS_Y + CANVAS_SIZE // 2)
-        
         screen.blit(text_overlay, text_overlay.get_rect(center=left_canvas_center))
         screen.blit(text_overlay, text_overlay.get_rect(center=right_canvas_center))
+
+    # 🎯 [핵심 디자인 수정] 더 크고 선명해진 시작 스크린 UI
+    if GAME_STATE == "START_SCREEN":
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((45, 52, 54, 225)) # 암전률 소폭 상향하여 글자 집중도 강화
+        screen.blit(overlay, (0, 0))
+        
+        # 1. 메인 타이틀 스케일업 (64pt, Bold)
+        title_surf = start_title_font.render("AI Catch-Mind", True, (254, 211, 48))
+        title_rect = title_surf.get_rect(center=(SCREEN_WIDTH // 2, 95))
+        screen.blit(title_surf, title_rect)
+        
+        # 2. 설명 레이아웃 박스 확장 조정
+        layout_box = pygame.Rect(60, 175, SCREEN_WIDTH - 120, SCREEN_HEIGHT - 390)
+        pygame.draw.rect(screen, (116, 125, 140), layout_box, width=3, border_radius=10) # 테두리 두께 강화
+        
+        # 3. 소제목: How to play (노란색 크기 상향 및 Bold)
+        desc_title = start_desc_title_font.render("How to play", True, (245, 215, 80))
+        screen.blit(desc_title, (layout_box.x + 40, layout_box.y + 30))
+        
+        # 4. 불릿포인트 기호 삭제 및 정갈하게 인덴트(들여쓰기 공간 3칸) 처리된 본문
+        bullet_points = [
+            "   출제자가 정답을 보고 왼쪽 도화지에 그림을 그리면 AI 모델이 그림을 보고 어떤 그림인지",
+            "   파악하고 출제자의 그림을 반영하여 사실적으로 생성합니다.",
+            "   AI가 그린 그림만을 보고 입력창에 답을 적어 정답을 맞추어 보세요!",
+            "   빠르게 맞출수록 높은 점수를 줍니다!"
+        ]
+        
+        # 20pt 폰트에 알맞은 여유로운 행간 처리 (38px 단위 배치)
+        start_y = layout_box.y + 95
+        for line in bullet_points:
+            line_surf = start_desc_body_font.render(line, True, (245, 246, 250))
+            screen.blit(line_surf, (layout_box.x + 20, start_y))
+            start_y += 38 
+            
+        # 5. [Game Start] 버튼 인터랙션 디자인
+        if start_button_rect.collidepoint(mouse_pos):
+            btn_color = (46, 204, 113)  
+        else:
+            btn_color = (39, 174, 96)   
+            
+        pygame.draw.rect(screen, btn_color, start_button_rect, border_radius=10)
+        pygame.draw.rect(screen, (255, 255, 255), start_button_rect, width=2, border_radius=10)
+        
+        btn_text = start_btn_font.render("Game Start", True, (255, 255, 255))
+        screen.blit(btn_text, btn_text.get_rect(center=start_button_rect.center))
 
     pygame.display.flip()
     clock.tick(120)

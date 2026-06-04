@@ -17,3 +17,6 @@ Sketchy/
 # 모델 관련 차단
 weights/
 *.pth
+
+# 기타
+results.txt
