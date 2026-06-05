@@ -1,4 +1,3 @@
-# client.py
 import pygame
 import sys
 import json
@@ -14,11 +13,62 @@ catchmind_classes = [
     'cat','dog','bear','elephant','giraffe','lion','tiger',
     'horse','cow','pig','rabbit','duck','penguin','frog','fish',
     'apple','banana','hamburger','hotdog','pizza','bread','strawberry','pineapple',
-    'airplane','bicycle','motorcycle','pickup truck','helicopter','rocket','sailboat',
-    'chair','table','door','window','hat','eyeglasses','hammer','scissors','guitar','violin','umbrella','shoe',
+    'airplane','bicycle','motorcycle','truck','helicopter','rocket','sailboat',
+    'chair','table','door','window','hat','glasses','hammer','scissors','guitar','violin','umbrella','shoe',
     'flower','tree','volcano','starfish','windmill','castle','cabin','hot air balloon'
 ]
-
+catchmind_map = {
+    'cat': ['고양이', '야옹이', 'cat', 'kitten', 'kitty'],
+    'dog': ['개', '강아지', 'dog', 'puppy'],
+    'bear': ['곰', 'bear'],
+    'elephant': ['코끼리', 'elephant'],
+    'giraffe': ['기린', 'giraffe'],
+    'lion': ['사자', 'lion'],
+    'tiger': ['호랑이', 'tiger'],
+    'horse': ['말', 'horse', 'pony'],
+    'cow': ['소', 'cow', 'cattle', 'bull', 'ox'],
+    'pig': ['돼지', 'pig', 'piggy', 'hog'],
+    'rabbit': ['토끼', 'rabbit', 'bunny'],
+    'duck': ['오리', 'duck'],
+    'penguin': ['펭귄', 'penguin'],
+    'frog': ['개구리', 'frog'],
+    'fish': ['물고기', '생선', 'fish'],
+    'apple': ['사과', 'apple'],
+    'banana': ['바나나', 'banana'],
+    'hamburger': ['햄버거', '버거', 'hamburger', 'burger'],
+    'hotdog': ['핫도그', 'hotdog', 'hot dog'],
+    'pizza': ['피자', 'pizza'],
+    'bread': ['빵', 'bread', 'loaf'],
+    'strawberry': ['딸기', 'strawberry'],
+    'pineapple': ['파인애플', 'pineapple'],
+    'airplane': ['비행기', 'airplane', 'aeroplane', 'plane'],
+    'bicycle': ['자전거', 'bicycle', 'bike'],
+    'motorcycle': ['오토바이', 'motorcycle', 'motorbike', 'bike'],
+    'truck': ['트럭', 'truck', 'lorry'],
+    'helicopter': ['헬리콥터', '헬기', 'helicopter', 'copter'],
+    'rocket': ['로켓', 'rocket', 'spaceship'],
+    'sailboat': ['돛단배', '범선', '돛배', '돋배', 'sailboat', 'sailing boat', 'yacht'],
+    'chair': ['의자', 'chair'],
+    'table': ['탁자', '테이블', 'table', 'desk'],
+    'door': ['문', 'door', 'gate'],
+    'window': ['창문', '창', 'window'],
+    'hat': ['모자', 'hat', 'cap'],
+    'glasses': ['안경', 'glasses', 'spectacles'],
+    'hammer': ['망치', 'hammer'],
+    'scissors': ['가위', 'scissors'],
+    'guitar': ['기타', 'guitar'],
+    'violin': ['바이올린', 'violin'],
+    'umbrella': ['우산', 'umbrella'],
+    'shoe': ['신발', '구두', 'shoe', 'shoes', 'boots'],
+    'flower': ['꽃', 'flower', 'blossom'],
+    'tree': ['나무', 'tree'],
+    'volcano': ['화산', 'volcano'],
+    'starfish': ['불가사리', 'starfish'],
+    'windmill': ['풍차', 'windmill'],
+    'castle': ['성', 'castle', 'fortress'],
+    'cabin': ['오두막', '통나무집', 'cabin', 'hut', 'cottage'],
+    'hot air balloon': ['열기구', 'hot air balloon', 'balloon']
+}
 # --- 1. 환경 및 레이아웃 설정 ---
 pygame.init()
 
@@ -84,12 +134,26 @@ BAR_EMPTY_COLOR = (180, 180, 180)
 BAR_FILL_COLOR = (46, 204, 113)    
 BAR_HEIGHT = 12                    
 
-is_solved = False                                   
+is_solved = False                                                   
 pen_active = False  
 
 opponent_guess_text = ""
 opponent_guess_time = 0.0
 current_stroke_points = []
+
+# 한/영 전환
+current_lang_mode = 'EN'
+# 현재 한/영 모드 및 게임 상태에 따른 출력 단어 결정 함수
+def get_display_word(eng_ans, is_solved_or_playing):
+    if not is_solved_or_playing:
+        return "???"
+    
+    if current_lang_mode == 'KO':
+        # catchmind_map에서 첫 번째 단어(한글)를 가져옴, 없을 경우 기본 영어 반환
+        word_list = catchmind_map.get(eng_ans, [])
+        return word_list[0] if word_list else eng_ans
+    else:
+        return eng_ans
 
 # --중복 방지 단어 풀 초기화--
 current_game_pool = catchmind_classes.copy()
@@ -213,20 +277,38 @@ try:
 except Exception as e:
     print(f"⚠️ 오프라인 모드로 실행됩니다. 서버 에러: {e}")
 
+
+# 로고 추가
+try:
+    title_logo_img = pygame.image.load("title_logo.png").convert_alpha()
+    
+except Exception as e:
+    print(f"로고 이미지 로드 실패: {e}")
+    title_logo_img = None
+
+# bgm 추가
+try:
+    pygame.mixer.init()
+    pygame.mixer.music.load("just_working.mp3") 
+    pygame.mixer.music.set_volume(0.4)  # 볼륨 세팅 (0.0 ~ 1.0 사이, 너무 크면 0.2~0.4 추천)
+    is_bgm_playing = False # 중복 재생 방지용 플래그
+except Exception as e:
+    print(f"⚠️ 오디오 파일 로드 실패: {e}")    
+
 # --- UI 레이아웃 리소스 및 폰트 세팅 ---
 label_font = pygame.font.SysFont("malgungothic", 24, bold=True)
 input_font = pygame.font.SysFont("malgungothic", 20, bold=True)
 btn_font = pygame.font.SysFont("malgungothic", 12, bold=True)
 game_ui_font = pygame.font.SysFont("malgungothic", 26, bold=True)
 popup_font = pygame.font.SysFont("malgungothic", 20, bold=True)
-countdown_font = pygame.font.SysFont("arial", 72, bold=True)
-game_over_font = pygame.font.SysFont("arial", 40, bold=True)
+countdown_font = pygame.font.SysFont("cooper black", 72)
 
-# 🎯 [수정] 시작 화면 폰트 스케일 대폭 상향 및 전원 굵게(bold=True) 처리
-start_title_font = pygame.font.SysFont("malgungothic", 64, bold=True)       # 48 -> 64 크기 상향
-start_desc_title_font = pygame.font.SysFont("malgungothic", 28, bold=True)  # 22 -> 28 크기 상향
-start_desc_body_font = pygame.font.SysFont("malgungothic", 20, bold=True)   # 16 -> 20 크기 상향 및 Bold 강제
+# 시작 및 종료화면 전용 폰트
+start_title_font = pygame.font.SysFont("malgungothic", 64, bold=True)      
+start_desc_title_font = pygame.font.SysFont("malgungothic", 28, bold=True) 
+start_desc_body_font = pygame.font.SysFont("malgungothic", 20, bold=True)  
 start_btn_font = pygame.font.SysFont("malgungothic", 26, bold=True)
+game_over_title_font = pygame.font.SysFont("malgungothic", 72, bold=True) 
 
 INPUT_BOX_WIDTH, INPUT_BOX_HEIGHT = 280, 44
 input_box_x = RIGHT_CANVAS_X + (CANVAS_SIZE - INPUT_BOX_WIDTH) // 2 + 35
@@ -255,6 +337,7 @@ btn_eraser = pygame.Rect(start_fx_x + 54, fx_y, 50, 24)
 btn_undo = pygame.Rect(start_fx_x + 108, fx_y, 40, 24)    
 btn_redo = pygame.Rect(start_fx_x + 152, fx_y, 40, 24)    
 btn_clear = pygame.Rect(start_fx_x + 196, fx_y, 50, 24)
+btn_lang = pygame.Rect(start_fx_x + 196, fx_y + 28, 50, 24)
 
 SLIDER_X, SLIDER_Y = LEFT_CANVAS_X, LEFT_CANVAS_Y + CANVAS_SIZE + 54
 SLIDER_WIDTH, SLIDER_HEIGHT = 220, 8
@@ -270,7 +353,7 @@ dragging_slider = False
 drawing = False
 last_pos = None
 
-# [Game Start] 버튼 영역 설정
+# [Game Start] 및 [Play Again] 버튼 영역 공용 설정
 start_button_rect = pygame.Rect((SCREEN_WIDTH // 2) - 120, SCREEN_HEIGHT - 160, 240, 60)
 
 def is_inside_user_canvas(pos):
@@ -297,6 +380,25 @@ def draw_on_canvas(start, end):
         pygame.draw.circle(user_canvas, color, (curr_x, curr_y), thick // 2)
         pygame.draw.circle(user_canvas_edges, edge_layer_color, (curr_x, curr_y), thick // 2)
 
+# --- 재시작 로직 공통 정의 함수 ---
+def reset_game_session():
+    global total_score, current_round, current_round_score, is_solved, GAME_STATE, state_start_time, current_game_pool, current_answer
+    total_score = 0
+    current_round = 1
+    current_round_score = MAX_SCORE
+    is_solved = False
+    user_canvas.fill(CANVAS_BG)
+    user_canvas_edges.fill(CANVAS_BG)
+    ai_canvas.fill(CANVAS_BG)
+    save_state(stroke_count=0)
+    
+    current_game_pool = catchmind_classes.copy()
+    random.shuffle(current_game_pool)
+    current_answer = current_game_pool.pop() 
+
+    GAME_STATE = "COUNTDOWN"
+    state_start_time = time.time()
+
 # --- 2. 게임 메인 루프 ---
 clock = pygame.time.Clock()
 running = True
@@ -306,7 +408,7 @@ while running:
     elapsed_in_state = current_time - state_start_time 
     
     # --- ⏱️ 상태 머신 제어 파트 ---
-    if GAME_STATE == "START_SCREEN":
+    if GAME_STATE in ["START_SCREEN", "GAME_OVER"]:
         pen_active = False
         drawing = False
         pygame.mouse.set_visible(True)
@@ -326,7 +428,7 @@ while running:
 
         if elapsed_in_state >= LIMIT_TIME:
             GAME_STATE = "LOCKOUT"
-            is_solved = True  
+            is_solved = False  
             state_start_time = current_time  
             pen_active = False  
             drawing = False
@@ -347,13 +449,23 @@ while running:
                 GAME_STATE = "COUNTDOWN"
                 state_start_time = time.time()  
             else:
+                # 🎯 [버그 해결] 게임이 완전히 오버되는 즉시 도화지 잔상을 지우고 서버와 싱크
+                user_canvas.fill(CANVAS_BG)
+                user_canvas_edges.fill(CANVAS_BG)
+                ai_canvas.fill(CANVAS_BG)
+                save_state(stroke_count=0)
+                send_canvas_to_server()
+                
                 GAME_STATE = "GAME_OVER"
                 state_start_time = time.time()
+
+                pygame.mixer.music.fadeout(1500) # 1.5초 동안 서서히 꺼짐
+                is_bgm_playing = False
 
     mouse_pos = pygame.mouse.get_pos()
     if pen_active and (is_inside_user_canvas(mouse_pos) or dragging_slider):
         pygame.mouse.set_visible(False)
-    elif GAME_STATE != "START_SCREEN":
+    elif GAME_STATE not in ["START_SCREEN", "GAME_OVER"]:
         pygame.mouse.set_visible(True)
 
     for event in pygame.event.get():
@@ -362,10 +474,20 @@ while running:
             
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:
+                # 시작 화면 버튼 클릭 처리
                 if GAME_STATE == "START_SCREEN":
                     if start_button_rect.collidepoint(mouse_pos):
                         GAME_STATE = "COUNTDOWN"
                         state_start_time = time.time()
+                        if not is_bgm_playing:
+                            # loops=-1 은 무한 반복, 0은 1번 재생
+                            pygame.mixer.music.play(loops=-1) 
+                            is_bgm_playing = True
+                    continue
+
+                if GAME_STATE == "GAME_OVER":
+                    if start_button_rect.collidepoint(mouse_pos):
+                        reset_game_session()
                     continue
 
                 if pen_active:
@@ -399,12 +521,14 @@ while running:
                             user_canvas_edges.fill(CANVAS_BG)
                             save_state(stroke_count=0) 
                             send_canvas_to_server()
+                        elif btn_lang.collidepoint(mouse_pos):
+                            current_lang_mode = 'KO' if current_lang_mode == 'EN' else 'EN'
                             
                         if slider_handle_rect.collidepoint(mouse_pos) or slider_rect.collidepoint(mouse_pos):
                             dragging_slider = True
 
         elif event.type == pygame.MOUSEBUTTONUP:
-            if event.button == 1 and GAME_STATE != "START_SCREEN":
+            if event.button == 1 and GAME_STATE not in ["START_SCREEN", "GAME_OVER"]:
                 if drawing:
                     drawing = False
                     last_pos = None
@@ -443,37 +567,40 @@ while running:
                 if event.key in [pygame.K_RETURN, pygame.K_SPACE]:
                     GAME_STATE = "COUNTDOWN"
                     state_start_time = time.time()
+                    if not is_bgm_playing:
+                        pygame.mixer.music.play(loops=-1)
+                        is_bgm_playing = True
                 continue
 
             if GAME_STATE == "GAME_OVER":
                 if event.key == pygame.K_r:  
-                    total_score = 0
-                    current_round = 1
-                    current_round_score = MAX_SCORE
-                    is_solved = False
-                    user_canvas.fill(CANVAS_BG)
-                    user_canvas_edges.fill(CANVAS_BG)
-                    ai_canvas.fill(CANVAS_BG)
-                    save_state(stroke_count=0)
-                    
-                    current_game_pool = catchmind_classes.copy()
-                    random.shuffle(current_game_pool)
-                    current_answer = current_game_pool.pop() 
+                    reset_game_session()
+                continue
 
-                    GAME_STATE = "COUNTDOWN"
-                    state_start_time = time.time()
             if event.key == pygame.K_RETURN and GAME_STATE == "PLAYING":
                 final_guess = input_text + editing_text
                 final_guess = final_guess.strip()
                 
                 if final_guess:
-                    opponent_guess_text = final_guess
+                    # --- [수정] catchmind_map 기반 정답 체크 로직 ---
+                    # 등록된 리스트(한글/영어 유의어 포함)를 가져와서 모두 소문자로 변환하여 비교 리스트 생성
+                    allowed_answers = [ans.lower() for ans in catchmind_map.get(current_answer, [])]
+                    
+                    # 사용자가 입력한 값이 리스트에 포함되어 있으면 정답 처리
+                    is_correct = final_guess.lower() in allowed_answers
+                    
+                    if is_correct:
+                        opponent_guess_text = f"{final_guess} (O)"
+                    else:
+                        opponent_guess_text = f"{final_guess} (X)"
+                        
                     opponent_guess_time = current_time
+                    
                     if ws:
                         try: ws.send(json.dumps({"type": "guess", "text": final_guess}))
                         except: pass
                     
-                    if final_guess == current_answer and not is_solved:
+                    if is_correct and not is_solved:
                         GAME_STATE = "LOCKOUT"
                         is_solved = True
                         state_start_time = current_time  
@@ -487,16 +614,34 @@ while running:
     # --- 3. 렌더링 영역 ---
     screen.fill(BACKGROUND_COLOR)
     
-    # 🎯 [수정] 왼쪽 도화지도 PLAYING 상태일 때만 정답 단어가 보이도록 예외 처리
+    # 1. 왼쪽 캔버스 상단 정답 텍스트 및 마크
     left_center_x = LEFT_CANVAS_X + (CANVAS_SIZE // 2)
-    display_left_ans = current_answer if GAME_STATE == "PLAYING" else "???"
+    display_left_ans = get_display_word(current_answer, GAME_STATE == "PLAYING" or GAME_STATE == "LOCKOUT")
     ans_text_surf = game_ui_font.render(f"정답: {display_left_ans}", True, (245, 215, 80)) 
-    screen.blit(ans_text_surf, ans_text_surf.get_rect(center=(left_center_x, LEFT_CANVAS_Y - 50)))
+    ans_text_rect = ans_text_surf.get_rect(center=(left_center_x, LEFT_CANVAS_Y - 50))
+    screen.blit(ans_text_surf, ans_text_rect)
     
+    # 2. 오른쪽 캔버스 상단 정답 텍스트 및 마크
     right_center_x = RIGHT_CANVAS_X + (CANVAS_SIZE // 2)
-    display_right_ans = current_answer if is_solved else "???"
+    display_right_ans = current_answer if (is_solved or GAME_STATE == "LOCKOUT") else "???"
     ai_text_surf = game_ui_font.render(f"정답: {display_right_ans}", True, (245, 215, 80))
-    screen.blit(ai_text_surf, ai_text_surf.get_rect(center=(right_center_x, RIGHT_CANVAS_Y - 50)))
+    ai_text_rect = ai_text_surf.get_rect(center=(right_center_x, RIGHT_CANVAS_Y - 50))
+    screen.blit(ai_text_surf, ai_text_rect)
+
+    # 3. 라운드가 종료되었거나 정답을 맞춘 상태일 때 양쪽 정답 텍스트 우측에 마크 배치
+    if is_solved:
+        result_mark = "O"
+    elif GAME_STATE == "LOCKOUT":
+        result_mark = "X"
+
+        mark_font = pygame.font.SysFont("malgungothic", 24, bold=True)
+        mark_surf = mark_font.render(result_mark, True, (235, 94, 85)) 
+        
+        left_mark_x = ans_text_rect.right + 12
+        right_mark_x = ai_text_rect.right + 12
+        
+        screen.blit(mark_surf, mark_surf.get_rect(midleft=(left_mark_x, ans_text_rect.centery)))
+        screen.blit(mark_surf, mark_surf.get_rect(midleft=(right_mark_x, ai_text_rect.centery)))
 
     BAR_MARGIN_X = 40  
     REDUCED_BAR_WIDTH = CANVAS_SIZE - (BAR_MARGIN_X * 2)  
@@ -509,51 +654,67 @@ while running:
         if GAME_STATE == "PLAYING":
             time_ratio = max(0.0, min(1.0, (LIMIT_TIME - elapsed_in_state) / LIMIT_TIME))
             current_bar_width = int(REDUCED_BAR_WIDTH * time_ratio)
+            if time_ratio >= 0.5:
+                dynamic_bar_color = (46, 204, 113)       
+            elif time_ratio >= 0.2:
+                dynamic_bar_color = (241, 196, 15)       
+            else:
+                dynamic_bar_color = (231, 76, 60)        
+                
             if current_bar_width > 0:
-                pygame.draw.rect(screen, BAR_FILL_COLOR, (bar_x_pos, bar_y_pos, current_bar_width, BAR_HEIGHT), border_radius=4)
+                pygame.draw.rect(screen, dynamic_bar_color, (bar_x_pos, bar_y_pos, current_bar_width, BAR_HEIGHT), border_radius=4)
         elif GAME_STATE in ["COUNTDOWN", "START_SCREEN"]:
             pygame.draw.rect(screen, BAR_FILL_COLOR, (bar_x_pos, bar_y_pos, REDUCED_BAR_WIDTH, BAR_HEIGHT), border_radius=4)
 
-    # --- 💬 [Y축 높이 보정] 상대방 입력 텍스트 제어 ---
-    if opponent_guess_text and (current_time - opponent_guess_time <= 1.0): # 1초 유지 반영
+    if opponent_guess_text and (current_time - opponent_guess_time <= 1.0): 
         
-        # 1. 스프링을 피하기 위해 기본 Y 좌표를 위로 6픽셀 더 올림 (기존 -46 -> -52)
-        base_y = LEFT_CANVAS_Y - 52  
+        clean_user_guess = opponent_guess_text.split(" (")[0] 
         
-        # 2. 레이아웃 가로 한계선 설정 (중앙선 침범 방지)
-        start_x = left_center_x + (game_ui_font.render(f"정답: {display_left_ans}", True, (0,0,0)).get_width() // 2) + 20
-        max_allowed_width = CENTER_LINE_X - start_x - 15 
+        left_base_y = LEFT_CANVAS_Y - 52  
+        left_start_x = left_center_x + (game_ui_font.render(f"정답: {display_left_ans}", True, (0,0,0)).get_width() // 2) + 30
+        left_max_width = CENTER_LINE_X - left_start_x - 15 
         
-        # 3. 픽셀 두께 기반 개행 여부 사전 검사
         title_text = "상대방 입력:"
-        full_raw_text = f"{title_text} {opponent_guess_text}"
+        left_full_text = f"{title_text} {clean_user_guess}"
+        left_w, _ = popup_font.size(left_full_text)
         
-        total_w, _ = popup_font.size(full_raw_text)
-        
-        # --- [분기 A] 가로 한계선을 넘지 않는 경우 (기존처럼 한 줄로 깔끔하게 출력) ---
-        if total_w <= max_allowed_width:
-            single_surf = popup_font.render(full_raw_text, True, (255, 94, 85))
-            screen.blit(single_surf, (start_x, base_y))
-            
-        # --- [분기 B] 한계선을 넘어서 개행이 필요한 경우 (타이틀과 내용 분리) ---
+        if left_w <= left_max_width:
+            left_surf = popup_font.render(left_full_text, True, (255, 94, 85)) 
+            screen.blit(left_surf, (left_start_x, left_base_y))
         else:
-            # 스프링에 절대 가려지지 않도록 1층 타이틀 위치를 정교하게 조정 (base_y - 14)
             title_surf = popup_font.render(title_text, True, (255, 94, 85))
-            screen.blit(title_surf, (start_x, base_y - 14)) 
-            
-            # 2층에 배치될 텍스트 조립 및 말줄임표(...) 검사
-            line2_text = ""
-            for char in opponent_guess_text:
-                test_w, _ = popup_font.size(line2_text + char + "...")
-                if test_w <= max_allowed_width:
-                    line2_text += char
+            screen.blit(title_surf, (left_start_x, left_base_y - 14)) 
+            l2_text = ""
+            for char in clean_user_guess:
+                if popup_font.size(l2_text + char + "...")[0] <= left_max_width:
+                    l2_text += char
                 else:
-                    line2_text += "..."
+                    l2_text += "..."
                     break
-            
-            # 2층 내용은 도화지 테두리를 침범하지 않는 선에서 아래에 안착 (base_y + 10)
-            line2_surf = popup_font.render(line2_text, True, (255, 94, 85))
-            screen.blit(line2_surf, (start_x, base_y + 10))
+            l2_surf = popup_font.render(l2_text, True, (255, 94, 85))
+            screen.blit(l2_surf, (left_start_x, left_base_y + 10))
+
+
+        right_base_y = RIGHT_CANVAS_Y - 52  
+        right_start_x = right_center_x + (game_ui_font.render(f"정답: {display_right_ans}", True, (0,0,0)).get_width() // 2) + 30
+        right_max_width = SCREEN_WIDTH - right_start_x - 15 
+        
+        right_full_text = opponent_guess_text 
+        right_w, _ = popup_font.size(right_full_text)
+        
+        if right_w <= right_max_width:
+            right_surf = popup_font.render(right_full_text, True, (235, 94, 85)) 
+            screen.blit(right_surf, (right_start_x, right_base_y))
+        else:
+            r2_text = ""
+            for char in right_full_text:
+                if popup_font.size(r2_text + char + "...")[0] <= right_max_width:
+                    r2_text += char
+                else:
+                    r2_text += "..."
+                    break
+            r2_surf = popup_font.render(r2_text, True, (235, 94, 85))
+            screen.blit(r2_surf, (right_start_x, right_base_y))
 
     BORDER_THICK = 8
     pygame.draw.rect(screen, BORDER_COLOR, (LEFT_CANVAS_X - BORDER_THICK, LEFT_CANVAS_Y - BORDER_THICK, CANVAS_SIZE + (BORDER_THICK*2), CANVAS_SIZE + (BORDER_THICK*2)), border_radius=4)
@@ -583,6 +744,12 @@ while running:
         screen.blit(overlay_surf, overlay_surf.get_rect(center=(LEFT_CANVAS_X + CANVAS_SIZE // 2, LEFT_CANVAS_Y + CANVAS_SIZE // 2)))
         screen.blit(overlay_surf, overlay_surf.get_rect(center=(RIGHT_CANVAS_X + CANVAS_SIZE // 2, RIGHT_CANVAS_Y + CANVAS_SIZE // 2)))
 
+        round_font = pygame.font.SysFont("arial", 24, bold=True)
+        round_text_surf = round_font.render(f"Round {current_round}", True, (245, 215, 80)) 
+        
+        screen.blit(round_text_surf, (LEFT_CANVAS_X + 10, LEFT_CANVAS_Y + 10))
+        screen.blit(round_text_surf, (RIGHT_CANVAS_X + 10, RIGHT_CANVAS_Y + 10))
+
     for btn in color_buttons:
         pygame.draw.rect(screen, btn["color"], btn["rect"], border_radius=4)
         if current_brush_color == btn["color"] and not is_eraser and not is_fill_mode:
@@ -592,7 +759,8 @@ while running:
 
     fx_buttons = [
         (btn_fill, "채우기", is_fill_mode), (btn_eraser, "지우개", is_eraser),
-        (btn_undo, "<-", False), (btn_redo, "->", False), (btn_clear, "초기화", False)
+        (btn_undo, "<-", False), (btn_redo, "->", False), (btn_clear, "초기화", False),
+        (btn_lang, "한글" if current_lang_mode == 'EN' else "영어",  False)
     ]
     for rect, label, active in fx_buttons:
         bg_col = (255, 213, 0) if active else (240, 240, 240)
@@ -625,35 +793,57 @@ while running:
             pygame.draw.circle(screen, current_brush_color, mouse_pos, brush_thickness // 2)
             pygame.draw.circle(screen, (255, 255, 255), mouse_pos, brush_thickness // 2, width=1)
 
+    # 🎯 [핵심 기획 반영] 통합된 새로운 Game Over 씬 UI 구현
     if GAME_STATE == "GAME_OVER":
-        FINAL_SCORE_COLOR = (30, 144, 255) 
-        final_text = f"Final Score: {total_score}"
-        text_overlay = game_over_font.render(final_text, True, FINAL_SCORE_COLOR)
-        left_canvas_center = (LEFT_CANVAS_X + CANVAS_SIZE // 2, LEFT_CANVAS_Y + CANVAS_SIZE // 2)
-        right_canvas_center = (RIGHT_CANVAS_X + CANVAS_SIZE // 2, RIGHT_CANVAS_Y + CANVAS_SIZE // 2)
-        screen.blit(text_overlay, text_overlay.get_rect(center=left_canvas_center))
-        screen.blit(text_overlay, text_overlay.get_rect(center=right_canvas_center))
-
-    # 🎯 [핵심 디자인 수정] 더 크고 선명해진 시작 스크린 UI
-    if GAME_STATE == "START_SCREEN":
+        # 1. Start 씬과 동일한 투명도를 지닌 회색 불투명 오버레이
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((45, 52, 54, 225)) # 암전률 소폭 상향하여 글자 집중도 강화
+        overlay.fill((45, 52, 54, 225)) 
         screen.blit(overlay, (0, 0))
         
-        # 1. 메인 타이틀 스케일업 (64pt, Bold)
-        title_surf = start_title_font.render("AI Catch-Mind", True, (254, 211, 48))
-        title_rect = title_surf.get_rect(center=(SCREEN_WIDTH // 2, 95))
-        screen.blit(title_surf, title_rect)
+        # 2. 상단 중앙 대형 Game Over 타이틀 배치
+        go_title_surf = game_over_title_font.render("Game Over", True, (235, 94, 85)) 
+        go_title_rect = go_title_surf.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 100))
+        screen.blit(go_title_surf, go_title_rect)
         
-        # 2. 설명 레이아웃 박스 확장 조정
+        # 3. 타이틀 바로 밑에 합산된 Final Score 배치
+        final_score_surf = start_title_font.render(f"Final Score: {total_score}", True, (254, 211, 48))
+        final_score_rect = final_score_surf.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 10))
+        screen.blit(final_score_surf, final_score_rect)
+        
+        # 4. Play Again 버튼 인터랙션 (Start 버튼 영역 및 폰트 재활용)
+        if start_button_rect.collidepoint(mouse_pos):
+            btn_color = (46, 204, 113)  # Hover 상태: 밝은 초록
+        else:
+            btn_color = (39, 174, 96)   # 기본 상태: 짙은 초록
+            
+        pygame.draw.rect(screen, btn_color, start_button_rect, border_radius=10)
+        pygame.draw.rect(screen, (255, 255, 255), start_button_rect, width=2, border_radius=10)
+        
+        btn_text = start_btn_font.render("Play Again", True, (255, 255, 255))
+        screen.blit(btn_text, btn_text.get_rect(center=start_button_rect.center))
+
+    # [기존] 시작 스크린 UI 
+    if GAME_STATE == "START_SCREEN":
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((45, 52, 54, 225)) 
+        screen.blit(overlay, (0, 0))
+        
+        # --- 기존 3줄 코드를 아래 내용으로 변경 ---
+        if title_logo_img:
+            # 이미지의 Rect 정보 추출 및 기존과 동일한 위치(y=95) 중앙 배치
+            title_rect = title_logo_img.get_rect(center=(SCREEN_WIDTH // 2, 95))
+            screen.blit(title_logo_img, title_rect)
+        else:
+            title_surf = start_title_font.render("AI Catch-Mind", True, (254, 211, 48))
+            title_rect = title_surf.get_rect(center=(SCREEN_WIDTH // 2, 95))
+            screen.blit(title_surf, title_rect)
+        
         layout_box = pygame.Rect(60, 175, SCREEN_WIDTH - 120, SCREEN_HEIGHT - 390)
-        pygame.draw.rect(screen, (116, 125, 140), layout_box, width=3, border_radius=10) # 테두리 두께 강화
+        pygame.draw.rect(screen, (116, 125, 140), layout_box, width=3, border_radius=10) 
         
-        # 3. 소제목: How to play (노란색 크기 상향 및 Bold)
         desc_title = start_desc_title_font.render("How to play", True, (245, 215, 80))
         screen.blit(desc_title, (layout_box.x + 40, layout_box.y + 30))
         
-        # 4. 불릿포인트 기호 삭제 및 정갈하게 인덴트(들여쓰기 공간 3칸) 처리된 본문
         bullet_points = [
             "   출제자가 정답을 보고 왼쪽 도화지에 그림을 그리면 AI 모델이 그림을 보고 어떤 그림인지",
             "   파악하고 출제자의 그림을 반영하여 사실적으로 생성합니다.",
@@ -661,14 +851,12 @@ while running:
             "   빠르게 맞출수록 높은 점수를 줍니다!"
         ]
         
-        # 20pt 폰트에 알맞은 여유로운 행간 처리 (38px 단위 배치)
         start_y = layout_box.y + 95
         for line in bullet_points:
             line_surf = start_desc_body_font.render(line, True, (245, 246, 250))
             screen.blit(line_surf, (layout_box.x + 20, start_y))
             start_y += 38 
             
-        # 5. [Game Start] 버튼 인터랙션 디자인
         if start_button_rect.collidepoint(mouse_pos):
             btn_color = (46, 204, 113)  
         else:
