@@ -69,7 +69,7 @@ pip install -r requirements.txt
 uvicorn server:app --reload
 ```
 
-**게임 실행**: 서버가 활성화되면, game_client.py를 실행합니다.
+**게임 실행**: 서버가 활성화되면, `game_client.py`를 실행합니다.
 
 
 ## 3. Game Pipeline
@@ -150,6 +150,37 @@ Proposed Framework
 * batch size = 32
 * Adam optimizer (learning_rate=3e-4, weight_decay=1e-4)
 * ReduceLROnPlateau
+
+<details open>
+<summary><b>Trained models & results</b></summary>
+
+실시간 추론에 적합하도록 가볍고 강력한 모델을 만들고자 다양한 실험을 진행하였지만, 결과가 좋지 않아 기록만이라도 남기게 되었습니다.
+
+모든 실험은 ImageNet pretrained weight + full fine-tuning 설정으로 진행하였습니다.
+
+| Experiments | Params | Accuracy |
+|-------|-------|-------|
+| ResNet34 | 21.3M | 0.7715 |
+| ResNet34 + augmentation | 21.3M | **0.8045** |
+| ResNet18 | 11.2M | 0.7500 |
+
+ResNet34 모델에 augmentation을 적용한 모델이 가장 좋은 성능을 보였지만, 실제로 사용해 본 결과 기본 ResNet34 모델이 체감상 더 좋은 성능을 보였습니다.
+
+이러한 성능의 이점은 보존한 채 더 가벼운 모델을 만들기 위해 Knowledge Distillation을 적용하였습니다. ResNet34 모델을 teacher model로, ShuffleNetV2 모델을 student model로 설정하였고, 두 모델의 logit을 이용한 추가적인 KL divergence loss를 만들어 최소화하도록 하였습니다. 그 결과는 아래와 같습니다.
+
+| Experiments (student - teacher) | Params | Accuracy |
+|-------|-------|-------|
+| ShuffleNetV2 (only) | 0.4M | 0.6365 |
+| ShuffleNetV2 - ResNet34 (T=2) | 0.4M | 0.6160 |
+| ShuffleNetV2 - ResNet34 (T=5) | 0.4M | **0.7210** |
+| ShuffleNetV2 - ResNet18 (T=2) | 0.4M | 0.6585 |
+| ShuffleNetV2 - ResNet18 (T=5) | 0.4M | 0.6940 |
+
+최종 결과, ResNet34를 teacher로 사용한 ShuffleNetV2가 가장 좋은 성능을 보였습니다. 체감상 좋은 결과를 보였던 ResNet34과 약 5% 정도의 차이가 있지만, 모델의 규모는 약 54배 이상 작아 빠른 추론에 효율적입니다.
+
+Demo에 사용한 기기의 경우에는 ResNet34도 충분히 빠르게 추론이 가능하여 ResNet34를 사용하였으나, 더 작은 edge device에서 사용하는 경우에는 `weights/kd5_shufflenet_resnet34.pth`를 사용할 수 있습니다.
+
+</details>
 
 <br>
 
