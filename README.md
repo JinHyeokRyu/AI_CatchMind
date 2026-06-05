@@ -2,12 +2,12 @@
 
 **Real-Time AI-Powered CatchMind with Diffusion**
 
-<img src="src/ai_catchmind_img.png">
+<img src="src/ai_catchmind_banner.png">
 
-22101169 류진혁 (JinHyeokRyu)<br>
-22102472 조강현 (LewisCho7)
+## Introduction
 
-## 1. Game Introduction
+
+<img src="src/ai_catchmind_intro.png">
 
 기존의 캐치마인드(CatchMind) 게임에 Computer Vision과 Generative AI를 결합한 실시간 인터랙티브 드로잉 게임!!
 
@@ -27,6 +27,27 @@
 즉, 정답자는 출제자의 원본 그림이 아닌, AI가 해석하고 생성한 이미지를 통해 답을 맞추게 됩니다.
 또한, 빠르게 정답을 맞출수록 더 높은 점수를 획득할 수 있습니다.
 
+## 개발 인원
+
+22101169 류진혁 (JinHyeokRyu)<br>
+22102472 조강현 (LewisCho7)
+
+## Contents
+
+- [1. Demo](#1-demo)
+- [2. Installation](#2-installation)
+- [3. Game Pipeline](#3-game-pipeline)
+- [4. Game Implementation](#4-game-implementation)
+- [5. Model Implementation](#5-model-implementation)
+- [6. Limitations](#6-limitations)
+
+## 1. Demo
+
+(시연 영상)
+
+설명
+
+## 2. Installation
 
 ### 실행 환경 설정
 
@@ -50,13 +71,10 @@ uvicorn server:app --reload
 
 **게임 실행**: 서버가 활성화되면, game_client.py를 실행합니다.
 
-## 2. Demo
-
-(시연 영상)
-
-설명
 
 ## 3. Game Pipeline
+
+<img src="src/game_pipeline.png">
 
 게임의 전체 시스템은 다음과 같은 흐름으로 동작합니다.
 
@@ -64,9 +82,7 @@ uvicorn server:app --reload
 
 구체적으로는, 사용자가 Pygame Canvas에 그림을 그리면 ResNet 기반 classification 모델이 어떤 그림인지 인식합니다. 인식 결과를 바탕으로, 생성형 모델을 위한 prompting과 OpenCV 전처리를 수행하여 노이즈 제거 및 특징을 추출합니다. 최종적으로 Stable Diffusion을 이용하여 이미지를 생성하고 결과를 화면에 실시간으로 출력합니다.
 
-## 4. PyGame Implementation
-
-## Game 구현
+## 4. Game Implementation
 
 ### Game GUI
 
@@ -118,6 +134,8 @@ Proposed Framework
 ### 5.1. Sketch Classification
 사용자의 그림을 인식하기 위해, sketch classification 모델을 학습하였습니다.
 
+채색이 되어있지 않은 sketch 데이터셋의 특성상, 추론 시 사용자의 스케치에서 edge 성분만 추출하여 classification 모델의 입력으로 사용하였습니다.
+
 **Dataset**: [SketchDatabase](https://github.com/CDOTAD/SketchyDatabase)
 * 총 125개의 클래스 중, 캐치마인드에 적합한 50개의 클래스 선별 (클래스당 200장)
 * RandomAffine(degrees=10, translate=(0.05, 0.05))
@@ -135,7 +153,7 @@ Proposed Framework
 
 <br>
 
-### 5.2. Prompt Generation
+### 5.2. Prompt Construction
 Sketch classification 모델의 결과를 바탕으로, Stable Diffusion에 사용할 prompt를 구성합니다.
 
 **Prompt Format**
@@ -146,7 +164,7 @@ Sketch classification 모델의 결과를 바탕으로, Stable Diffusion에 사�
 
 <br>
 
-### 5.3. Sketch Preprocessing
+### 5.3. Sketch Preprocess
 사람이 사물을 그릴 때의 시각적 특징(Edge, Shape)을 강조합니다.
 
 사용자가 그린 스케치는 노이즈가 많고 선의 정보가 불명확할 수 있습니다.
@@ -171,3 +189,14 @@ Edge 정보를 명확히하고 더 강조하여 Diffusion Model이 보다 안정
 
 ControlNet은 사용자의 스케치 정보를 유지하도록 도와주어 Stable Diffusion이 사용자의 원래 의도를 훼손하지 않으면서도
 보다 직관적이고 풍부한 결과를 생성할 수 있도록 합니다.
+
+
+## 6. Limitations
+
+### Game
+- limitation
+
+### Model
+- sketch clssification 모델의 성능이 매우 좋지는 않아, 게임 내 category 개수를 50개로 제한하였습니다. (test_acc: 0.7715)
+- 그럼에도 높은 오분류율로 인해 사용자의 스케치를 오분류하여 완전히 다른 그림을 생성하는 경우도 존재합니다.
+- 사용자의 스케치를 분류하기 위해 edge 성분을 사용할 때, 단순히 색 채우기를 적용하지 않은 부분을 사용하기 때문에 직접 색을 칠한 경우 정확한 분류가 어렵다는 문제점도 존재합니다.
