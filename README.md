@@ -44,9 +44,12 @@
 ## 1. Demo
 
 [![AI 캐치마인드](http://img.youtube.com/vi/eACQGgL58ZA/0.jpg)](https://youtu.be/eACQGgL58ZA)
+
 <https://www.youtube.com/watch?v=eACQGgL58ZA>
 
 클릭하면 시연 영상을 볼 수 있습니다.
+
+AI 모델의 생성 속도가 빠른편이어서 출제자가 획을 그을때마다 거의 딜레이 없이 오른쪽 화면에 표시되는 것을 확인할 수 있습니다. ControlNet에 의해 유저의 스케치를 따라가는 모습이 보이며, 채우기를 활용하면 색상 정보를 잘 활용하여 더욱 realistic한 이미지들을 생성하는 것을 확인할 수 있습니다.
 
 ## 2. Installation
 
