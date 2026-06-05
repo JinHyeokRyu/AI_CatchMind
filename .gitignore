@@ -12,7 +12,6 @@ Sketchy/
 *.zip
 *.7z
 *.tar
-*.png
 
 # 모델 관련 차단
 weights/

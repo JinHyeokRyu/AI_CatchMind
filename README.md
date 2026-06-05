@@ -2,6 +2,8 @@
 
 **Real-Time AI-Powered CatchMind with Diffusion**
 
+<img src="src/ai_catchmind_img.png">
+
 22101169 류진혁 (JinHyeokRyu)<br>
 22102472 조강현 (LewisCho7)
 
@@ -28,7 +30,9 @@
 
 ### 실행 환경 설정
 
-본 repository를 clone 후, 터미널에 아래의 명령어를 입력합니다. (Python version=3.10.20)
+본 repository를 clone 후, 터미널에 아래의 명령어를 입력합니다. (cuda 관련 라이브러리를 우선적으로 설치 후 진행하는 것을 추천합니다.)
+
+our environment: RTX 3050 laptop GPU, Python version=3.10.20, CUDA version=11.8
 
 ```bash
 pip install torch==2.1.0+cu118 torchvision==0.16.0+cu118 xformers==0.0.22.post7+cu118 --extra-index-url https://download.pytorch.org/whl/cu118
@@ -101,9 +105,16 @@ FastAPI 및 WebSocket을 이용한 양방향 비동기 서버 통신을 구현�
     - 클라이언트에서 픽셀 데이터를 binary 형태로 추출하여 Base64 문자열로 전송
     - 서버에서 image data로 디코딩하여 모델에 전달
 - AI 추론 오버헤드 최적화
-    - .
+    - 서버 시작 시 모델 pipeline 로드
+    - 많은 시간이 소요되는 Stable Diffusion의 첫 추론을 서버 시작 시 dummy 입력을 사용하여 조기 수행
+    - AI 모델의 추론 시간동안 버퍼에 누적되는 소켓을 전부 비우고 가장 최신의 소켓만 사용 → 모델이 항상 최신의 스케치만으로 이미지를 생성하도록 하여 사용자 경험(UX) 개선
+    - sketch classifier의 결과가 이전의 결과와 동일한 경우 기존의 text embedding 재사용
 
 ## 5. Model Implementation
+
+<img src="src/model_framework.png">
+Proposed Framework
+
 ### 5.1. Sketch Classification
 사용자의 그림을 인식하기 위해, sketch classification 모델을 학습하였습니다.
 
@@ -122,45 +133,41 @@ FastAPI 및 WebSocket을 이용한 양방향 비동기 서버 통신을 구현�
 * Adam optimizer (learning_rate=3e-4, weight_decay=1e-4)
 * ReduceLROnPlateau
 
+<br>
+
 ### 5.2. Prompt Generation
-Sketch classification 모델의 결과를 바탕으로, Stable Diffusion에 사용할 prompt를 생성합니다.
+Sketch classification 모델의 결과를 바탕으로, Stable Diffusion에 사용할 prompt를 구성합니다.
 
-**Prompt Format**<br>
+**Prompt Format**
+* prompt = "{class}, photorealistic, best quality"<br>
+* negative_prompt = "low quality"
 
-prompt = "{class}, photorealistic, best quality"<br>
-negative_prompt = "low quality"
+이렇게 구성된 prompt는 Stable Diffusion 내의 CLIP text encoder로 embedding되어 생성 모델에게 객체에 대한 semantic 정보를 전달하여 보다 정확한 이미지를 생성하도록 유도합니다.
 
+<br>
 
-
-### 5.3. Feature Recognition
-사람이 사물을 그릴 때 강조하는 시각적 특징(Edge, Shape)을 Computer Vision 기법으로 실시간 포착합니다.
+### 5.3. Sketch Preprocessing
+사람이 사물을 그릴 때의 시각적 특징(Edge, Shape)을 강조합니다.
 
 사용자가 그린 스케치는 노이즈가 많고 선의 정보가 불명확할 수 있습니다.
 이를 보완하기 위해 OpenCV 기반 전처리를 수행합니다.
 
 주요 과정은 다음과 같습니다.
 
-* Edge Thickening을 통한 선 강조
-* RGB 이미지와 Edge 정보를 함께 활용
+**Grayscale 변환 → Binary Thresholding → Dilation**
 
-이를 통해 Diffusion Model이 보다 안정적으로 사용자의 의도를 이해할 수 있도록 합니다
+Edge 정보를 명확히하고 더 강조하여 Diffusion Model이 보다 안정적으로 사용자의 의도를 이해할 수 있도록 합니다.
 
-### 2. Structural Constraint
+<br>
 
-실시간 생성을 위해 Stable Diffusion 1.5 기반의 StreamDiffusion을 사용합니다.
+### 5.4. Image Generation
+
+사용자의 sketch를 따라가기 위해 ControlNet 기반의 Stable Diffusion 모델을 사용하였고, 실시간 생성을 위해 가벼운 Stable Diffusion 1.5 기반의 모델을 사용하였습니다.
 
 구성 요소는 다음과 같습니다.
 
 * Stable Diffusion 1.5
-* ControlNet (Lineart / SoftEdge)
-* StreamDiffusion
+* ControlNet
 
-ControlNet은 사용자의 선 정보를 유지하도록 도와주며,
-StreamDiffusion은 반복적인 inference latency를 줄여
-실시간 생성이 가능하도록 합니다.
-
-이를 통해 AI가 사용자의 원래 의도를 훼손하지 않으면서도
+ControlNet은 사용자의 스케치 정보를 유지하도록 도와주어 Stable Diffusion이 사용자의 원래 의도를 훼손하지 않으면서도
 보다 직관적이고 풍부한 결과를 생성할 수 있도록 합니다.
-
-
-
