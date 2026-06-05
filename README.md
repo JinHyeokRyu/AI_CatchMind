@@ -43,8 +43,7 @@
 
 ## 1. Demo
 
-<iframe width="560" height="315" src="https://youtu.be/eACQGgL58ZA" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-
+[![시연 동영상](http://img.youtube.com/vi/'eACQGgL58ZA'/0.jpg)](https://youtu.be/'eACQGgL58ZA')
 
 설명
 
