@@ -43,7 +43,7 @@
 
 ## 1. Demo
 
-[![시연 동영상](http://img.youtube.com/vi/'eACQGgL58ZA'/0.jpg)](https://youtu.be/'eACQGgL58ZA')
+[![AI 캐치마인드](http://img.youtube.com/vi/eACQGgL58ZA/0.jpg)](https://youtu.be/eACQGgL58ZA)
 
 설명
 
