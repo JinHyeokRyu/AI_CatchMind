@@ -2,12 +2,12 @@
 
 **Real-Time AI-Powered CatchMind with Diffusion**
 
-<img src="src/ai_catchmind_banner.png">
+<img src="img/ai_catchmind_banner.png">
 
 ## Introduction
 
 
-<img src="src/ai_catchmind_intro.png">
+<img src="img/ai_catchmind_intro.png">
 
 기존의 캐치마인드(CatchMind) 게임에 Computer Vision과 Generative AI를 결합한 실시간 인터랙티브 드로잉 게임!!
 
@@ -36,10 +36,11 @@
 
 - [1. Demo](#1-demo)
 - [2. Installation](#2-installation)
-- [3. Game Pipeline](#3-game-pipeline)
-- [4. Game Implementation](#4-game-implementation)
-- [5. Model Implementation](#5-model-implementation)
-- [6. Limitations](#6-limitations)
+- [3. How to Play](#3-how-to-play)
+- [4. Game Pipeline](#4-game-pipeline)
+- [5. Game Implementation](#5-game-implementation)
+- [6. Model Implementation](#6-model-implementation)
+- [7. Limitations](#7-limitations)
 
 ## 1. Demo
 
@@ -67,18 +68,45 @@ pip install -r requirements.txt
 
 ### 게임 실행 방법
 
-**서버 시작**: 가상환경 실행 후, 터미널에 아래의 명령어를 입력합니다.
+가상환경 활성화 후 아래의 명령어를 입력합니다.
 
 ```bash
-uvicorn server:app --reload
+python run.py
 ```
 
-**게임 실행**: 서버가 활성화되면, `game_client.py`를 실행합니다.
+자동으로 서버를 실행하고, 서버가 활성화되면 게임 클라이언트가 실행됩니다.
 
 
-## 3. Game Pipeline
+## 3. How to Play
 
-<img src="src/game_pipeline.png">
+### 기본 화면
+<img src="img/demo1.png">
+
+게임이 시작되면, 그림을 그리는 사람(출제자)은 그리게 될 주제를 제공받고, 아래의 툴을 이용하여 그림을 그릴 수 있습니다.
+
+색상, 두께 선택이 가능하며, 채우기, 지우개, 이전, 앞으로, 초기화가 가능합니다. 추가적으로 기본으로는 주제가 영어로 제공되지만, 한글/영어 전환도 가능합니다.
+
+### 그림 그리기 & 이미지 생성
+<img src="img/demo2.png">
+
+출제자가 그림을 그리면, 정답을 맞추는 사람(정답자)은 AI가 인지하고 생성한 그림을 보게 됩니다.
+
+### 색상 채우기
+<img src="img/demo3.png">
+
+출제가가 채우기 기능을 사용하면, 보다 더 높은 퀄리티의 이미지를 얻을 수 있습니다.
+
+채우고자 하는 색상을 선택하고, 채우기 버튼을 눌러 채우기를 활성화 합니다. 그 후, 채우고자 하는 영역을 클릭하여 색상을 채울 수 있습니다. (해당 영역이 닫혀있지 않다면 전체가 칠해질 수 있으니 유의해주세요)
+
+### 정답 제출
+<img src="img/demo4.png">
+
+정답을 추측한 정답자는 별도의 마우스 조작 없이 키보드 입력만으로 정답을 입력할 수 있습니다. 입력 상태는 오른쪽 아래에 표시됩니다.
+
+
+## 4. Game Pipeline
+
+<img src="img/game_pipeline.png">
 
 게임의 전체 시스템은 다음과 같은 흐름으로 동작합니다.
 
@@ -86,7 +114,7 @@ uvicorn server:app --reload
 
 구체적으로는, 사용자가 Pygame Canvas에 그림을 그리면 ResNet 기반 classification 모델이 어떤 그림인지 인식합니다. 인식 결과를 바탕으로, 생성형 모델을 위한 prompting과 OpenCV 전처리를 수행하여 노이즈 제거 및 특징을 추출합니다. 최종적으로 Stable Diffusion을 이용하여 이미지를 생성하고 결과를 화면에 실시간으로 출력합니다.
 
-## 4. Game Implementation
+## 5. Game Implementation
 
 ### Game GUI
 
@@ -133,12 +161,12 @@ FastAPI 및 WebSocket을 이용한 양방향 비동기 서버 통신을 구현�
     - AI 모델의 추론 시간동안 버퍼에 누적되는 소켓을 전부 비우고 가장 최신의 소켓만 사용 → 모델이 항상 최신의 스케치만으로 이미지를 생성하도록 하여 사용자 경험(UX) 개선
     - sketch classifier의 결과가 이전의 결과와 동일한 경우 기존의 text embedding 재사용
 
-## 5. Model Implementation
+## 6. Model Implementation
 
-<img src="src/model_framework.png">
+<img src="img/model_framework.png">
 Proposed Framework
 
-### 5.1. Sketch Classification
+### 6.1. Sketch Classification
 사용자의 그림을 인식하기 위해, sketch classification 모델을 학습하였습니다.
 
 채색이 되어있지 않은 sketch 데이터셋의 특성상, 추론 시 사용자의 스케치에서 edge 성분만 추출하여 classification 모델의 입력으로 사용하였습니다.
@@ -191,7 +219,7 @@ Demo에 사용한 기기의 경우에는 ResNet34도 충분히 빠르게 추론�
 
 <br>
 
-### 5.2. Prompt Construction
+### 6.2. Prompt Construction
 Sketch classification 모델의 결과를 바탕으로, Stable Diffusion에 사용할 prompt를 구성합니다.
 
 **Prompt Format**
@@ -202,7 +230,7 @@ Sketch classification 모델의 결과를 바탕으로, Stable Diffusion에 사�
 
 <br>
 
-### 5.3. Sketch Preprocess
+### 6.3. Sketch Preprocess
 사람이 사물을 그릴 때의 시각적 특징(Edge, Shape)을 강조합니다.
 
 사용자가 그린 스케치는 노이즈가 많고 선의 정보가 불명확할 수 있습니다.
@@ -216,7 +244,7 @@ Edge 정보를 명확히하고 더 강조하여 Diffusion Model이 보다 안정
 
 <br>
 
-### 5.4. Image Generation
+### 6.4. Image Generation
 
 사용자의 sketch를 따라가기 위해 ControlNet 기반의 Stable Diffusion 모델을 사용하였고, 실시간 생성을 위해 가벼운 Stable Diffusion 1.5 기반의 모델을 사용하였습니다.
 
@@ -229,7 +257,7 @@ ControlNet은 사용자의 스케치 정보를 유지하도록 도와주어 Stab
 보다 직관적이고 풍부한 결과를 생성할 수 있도록 합니다.
 
 
-## 6. Limitations
+## 7. Limitations
 
 ### Game
 - 본 프로젝트는 현재 프로토타입 단계로, 웹 서버 기반의 독립적인 멀티플레이어 환경 대신 단일 디스플레이 내 분할 화면 방식으로 로컬 멀티플레이를 구현하였습니다.
