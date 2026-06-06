@@ -12,9 +12,3 @@ Sketchy/
 *.zip
 *.7z
 *.tar
-
-# 모델 관련 차단
-weights/
-*.pth
-
-# 기타
