@@ -271,7 +271,7 @@ def bg_receive_loop():
                 break
 
 try:
-    from PIL import Image 
+    from PIL import Image
     ws = create_connection(SERVER_URL)
     print("🚀 FastAPI 서버와 웹소켓 연결 완료!")
     rx_thread = threading.Thread(target=bg_receive_loop, daemon=True)
@@ -282,7 +282,7 @@ except Exception as e:
 
 # 로고 추가
 try:
-    title_logo_img = pygame.image.load("title_logo.png").convert_alpha()
+    title_logo_img = pygame.image.load("src/title_logo.png").convert_alpha()
     
 except Exception as e:
     print(f"로고 이미지 로드 실패: {e}")
@@ -291,7 +291,7 @@ except Exception as e:
 # bgm 추가
 try:
     pygame.mixer.init()
-    pygame.mixer.music.load("just_working.mp3") 
+    pygame.mixer.music.load("src/just_working.mp3") 
     pygame.mixer.music.set_volume(0.4)  # 볼륨 세팅 (0.0 ~ 1.0 사이, 너무 크면 0.2~0.4 추천)
     is_bgm_playing = False # 중복 재생 방지용 플래그
 except Exception as e:
